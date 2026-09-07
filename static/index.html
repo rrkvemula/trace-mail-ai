@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="TRACE-MAIL AI SIH26106 email threat analysis prototype">
+    <title>TRACE-MAIL AI • Email Threat Analysis Prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;0,800;1,400&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://unpkg.com/lenis@1.1.20/dist/lenis.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <!-- Lusion-Inspired 3D Quantum Portal Overlay -->
+    <div id="portal-overlay" class="portal-overlay" hidden>
+        <canvas id="portal-canvas"></canvas>
+        <div class="portal-hud">
+            <div class="portal-hud-top">
+                <div class="portal-badge-wrap">
+                    <span class="portal-live-dot"></span>
+                    <span class="portal-tag">TRACE-MAIL AI • QUANTUM WARP RECON</span>
+                </div>
+                <button id="btn-skip-portal" class="btn-skip-portal" type="button">SKIP TELEMETRY [ESC]</button>
+            </div>
+            <div class="portal-center-info">
+                <div class="portal-reticle">
+                    <div class="reticle-ring r1"></div>
+                    <div class="reticle-ring r2"></div>
+                    <div class="reticle-glow"></div>
+                </div>
+                <div class="portal-packet-label">PACKET: <span id="portal-packet-id">RFC-5322://TRAVERSAL</span></div>
+                <div class="portal-status-step" id="portal-status-step">INSPECTING CRYPTOGRAPHIC HEADERS...</div>
+            </div>
+            <div class="portal-hud-bottom">
+                <div class="portal-progress-bar">
+                    <div class="portal-progress-fill" id="portal-progress-fill"></div>
+                </div>
+                <div class="portal-telemetry-feed">
+                    <span id="telemetry-line-1">&gt; INGESTING RAW RFC OCTETS [EVIDENCE LOCK]</span>
+                    <span id="telemetry-line-2">&gt; TRAVERSING AUTONOMOUS SYSTEM GATEWAYS...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="cyber-canvas" aria-hidden="true"></canvas>
+    <div class="ambient-glow glow-1" aria-hidden="true"></div>
+    <div class="ambient-glow glow-2" aria-hidden="true"></div>
+
+    <header class="topbar">
+        <div class="brand-block">
+            <div class="shield-icon" aria-hidden="true">
+                <span class="shield-pulse"></span>
+                🛡️
+            </div>
+            <div class="title-wrap">
+                <div class="brand-line">
+                    <h1>TRACE-MAIL AI</h1>
+                    <span class="prototype-badge">SIH PROTOTYPE</span>
+                </div>
+                <p>Email threat detection, infrastructure tracing and forensic intelligence</p>
+            </div>
+        </div>
+        <div class="header-meta">
+            <div class="ps-badge">SIH26106 • AICTE</div>
+            <div class="institution">Sir C.R. Reddy CoE<br><span class="online-indicator"><span class="live-dot"></span> LOCAL SYSTEM ONLINE</span></div>
+        </div>
+    </header>
+
+    <main>
+        <section class="card ingestion-card">
+            <div class="card-scanline" aria-hidden="true"></div>
+            <div class="section-heading">
+                <div>
+                    <span class="eyebrow">EMAIL ANALYSIS WORKSPACE</span>
+                    <h2>Submit an email for technical review</h2>
+                    <p>Upload an exact <code>.eml</code> file, paste RFC-822 content, or use a controlled demonstration scenario.</p>
+                </div>
+                <span class="method-badge">Hybrid rules + prototype Naive Bayes</span>
+            </div>
+
+            <div class="advisory">
+                <strong>Evidence notice:</strong> Results identify indicators and candidate network infrastructure. They do not establish a person's identity, exact physical location, or legal admissibility.
+            </div>
+
+            <div class="controls-bar">
+                <div class="sample-buttons" id="sample-buttons-container" aria-label="Demonstration samples"></div>
+                <div class="action-buttons">
+                    <label class="btn-secondary" for="email-file">Choose .eml file</label>
+                    <input id="email-file" type="file" accept=".eml,message/rfc822" hidden>
+                    <button class="btn-primary" id="btn-analyze" type="button">
+                        <span class="btn-text">Run analysis</span>
+                        <span class="btn-glow"></span>
+                    </button>
+                </div>
+            </div>
+            <div id="file-status" class="file-status">No file selected. Maximum size: 5 MB.</div>
+            <div class="textarea-wrapper">
+                <textarea id="email-input" spellcheck="false" aria-label="Raw email content" placeholder="Paste raw RFC-822 email content here, including headers..."></textarea>
+                <div class="textarea-corner tl"></div>
+                <div class="textarea-corner tr"></div>
+                <div class="textarea-corner bl"></div>
+                <div class="textarea-corner br"></div>
+            </div>
+            <div id="error-message" class="error-message" role="alert" hidden></div>
+        </section>
+
+        <section id="loading-section" class="card loading-card" hidden>
+            <div class="loading-animation-wrap">
+                <span class="spinner" aria-hidden="true"></span>
+                <span class="spinner-ring" aria-hidden="true"></span>
+            </div>
+            <div class="loading-text">
+                <strong>Analyzing submitted evidence<span class="loading-dots"></span></strong>
+                <p>Parsing RFC-5322 headers, scoring threat heuristics, calculating Naive Bayes probability and enriching network hops.</p>
+            </div>
+        </section>
+
+        <section id="results-section" hidden>
+            <div class="result-heading">
+                <div>
+                    <span class="eyebrow">ANALYSIS RESULT</span>
+                    <h2 id="result-filename">Submitted email</h2>
+                </div>
+                <span id="analysis-id" class="analysis-id">--</span>
+            </div>
+
+            <div class="summary-grid">
+                <article class="card summary-card risk-card">
+                    <span>Composite risk</span>
+                    <div class="gauge-container">
+                        <svg class="gauge-svg" viewBox="0 0 120 120" aria-hidden="true">
+                            <circle class="gauge-bg" cx="60" cy="60" r="50" />
+                            <circle class="gauge-bar" id="gauge-bar" cx="60" cy="60" r="50" />
+                        </svg>
+                        <div class="gauge-inner">
+                            <strong id="threat-score-val">0</strong>
+                            <small>/ 100</small>
+                        </div>
+                    </div>
+                    <div class="verdict-badge" id="verdict-badge">NOT ANALYZED</div>
+                </article>
+                <article class="card summary-card">
+                    <span>Prototype ML probability</span>
+                    <strong id="ml-probability">--</strong>
+                    <small id="ml-label">Naive Bayes baseline</small>
+                </article>
+                <article class="card summary-card">
+                    <span>Reported authentication</span>
+                    <strong id="auth-overall">--</strong>
+                    <small>Parsed from message headers</small>
+                </article>
+                <article class="card summary-card">
+                    <span>Header consistency</span>
+                    <strong id="meta-hri">--</strong>
+                    <small>Timestamp consistency score</small>
+                </article>
+            </div>
+
+            <!-- AI Forensic Neural Engine & Token Explainability Showcase -->
+            <section class="card ai-neural-card" id="ai-neural-showcase">
+                <div class="card-title split-title">
+                    <div class="ai-title-wrap">
+                        <span class="ai-pulse-dot"></span>
+                        <span>AI Forensic Neural Engine • Multinomial Naive Bayes</span>
+                        <span class="method-badge">NLP Semantics + Bayesian Inference</span>
+                    </div>
+                    <button type="button" class="btn-ai-details" id="btn-toggle-ai-math">
+                        <span id="ai-toggle-text">How the AI Model Works</span> <span id="ai-toggle-icon">▾</span>
+                    </button>
+                </div>
+                
+                <div class="ai-showcase-grid">
+                    <!-- AI Probability Gauge & Verdict -->
+                    <div class="ai-metric-panel">
+                        <span class="ai-panel-eyebrow">NEURAL CLASSIFICATION CONFIDENCE</span>
+                        <div class="ai-probability-display">
+                            <div class="ai-prob-number" id="ai-prob-hero">--%</div>
+                            <div class="ai-prob-status" id="ai-prob-verdict">AWAITING EVALUATION</div>
+                        </div>
+                        <div class="ai-confidence-bar-wrap">
+                            <div class="ai-confidence-track">
+                                <div class="ai-confidence-fill" id="ai-confidence-fill"></div>
+                            </div>
+                            <div class="ai-prob-labels">
+                                <span>0% (Legitimate)</span>
+                                <span id="ai-threshold-marker">Decision Threshold 65%</span>
+                                <span>100% (Phishing)</span>
+                            </div>
+                        </div>
+                        <p class="ai-metric-desc" id="ai-confidence-desc">
+                            The NLP Bayesian model calculates posterior probability from vocabulary distributions trained on demonstration threat patterns.
+                        </p>
+                    </div>
+
+                    <!-- Token Influence Matrix & Extracted Semantic Triggers -->
+                    <div class="ai-tokens-panel">
+                        <div class="ai-panel-eyebrow split-title">
+                            <span>INFLUENTIAL SEMANTIC TOKENS (TF-IDF / LOG-ODDS)</span>
+                            <small id="ai-token-count">0 indicators extracted</small>
+                        </div>
+                        <div class="ai-tokens-container" id="ai-tokens-container">
+                            <div class="ai-token-empty">Run an analysis to inspect extracted linguistic threat indicators.</div>
+                        </div>
+                        <div class="ai-pipeline-meta">
+                            <div class="ai-meta-item">
+                                <span>ALGORITHM</span>
+                                <strong>Multinomial Naive Bayes</strong>
+                            </div>
+                            <div class="ai-meta-item">
+                                <span>CORPUS SCOPE</span>
+                                <strong>32-Sample Demonstration Baseline</strong>
+                            </div>
+                            <div class="ai-meta-item">
+                                <span>SMOOTHING</span>
+                                <strong>Laplace α = 1.0 (Additive)</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Collapsible Technical Math Explainer for Evaluators & Judges -->
+                <div class="ai-math-breakdown" id="ai-math-breakdown" hidden>
+                    <div class="math-grid">
+                        <div class="math-card">
+                            <h4>1. Token Extraction &amp; Lexical Vectorization</h4>
+                            <p>RFC-5322 subject, body, and MIME parts are tokenized into lowercased unigrams (length ≥ 2). Common stopwords are stripped to isolate forensic triggers.</p>
+                        </div>
+                        <div class="math-card">
+                            <h4>2. Laplace-Smoothed Bayesian Likelihood</h4>
+                            <p>For class <code>C ∈ {Phishing, Legitimate}</code>, each token's posterior log-likelihood is weighted with additive smoothing:
+                            <code>P(w|C) = (count(w, C) + 1) / (N_C + |V|)</code>.</p>
+                        </div>
+                        <div class="math-card">
+                            <h4>3. Normalized Log-Odds &amp; Sigmoid Probability</h4>
+                            <p>The delta between class log-likelihoods is normalized by token variance and passed through a Sigmoid activation curve:
+                            <code>P(Phishing|X) = 1 / (1 + e^(-Δodds))</code>.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="dashboard-grid">
+                <aside class="side-column">
+                    <article class="card">
+                        <div class="card-title">Evidence & source estimate</div>
+                        <dl class="telemetry-list">
+                            <div><dt>Exact byte SHA-256</dt><dd id="meta-hash">--</dd></div>
+                            <div><dt>Candidate source IP</dt><dd id="meta-origin-ip">--</dd></div>
+                            <div><dt>Infrastructure estimate</dt><dd id="meta-origin-geo">--</dd></div>
+                            <div><dt>Estimate confidence</dt><dd id="meta-origin-confidence">--</dd></div>
+                            <div><dt>Evidence basis</dt><dd id="meta-origin-source">--</dd></div>
+                            <div><dt>ISP / ASN</dt><dd id="meta-origin-isp">--</dd></div>
+                            <div><dt>Relay hops</dt><dd id="meta-total-hops">--</dd></div>
+                        </dl>
+                        <p id="origin-note" class="source-note"></p>
+                    </article>
+
+                    <article class="card auth-deep-card">
+                        <div class="card-title split-title">
+                            <span>Reported authentication results</span>
+                            <small>RFC Cryptographic Signatures</small>
+                        </div>
+                        <div class="auth-protocols-grid">
+                            <!-- SPF Protocol Card -->
+                            <div class="protocol-card" id="card-spf">
+                                <div class="protocol-header">
+                                    <div class="protocol-title-wrap">
+                                        <div class="protocol-name-line">
+                                            <strong class="protocol-abbr">SPF</strong>
+                                            <span class="protocol-rfc">RFC 7208</span>
+                                        </div>
+                                        <div class="protocol-full">Sender Policy Framework</div>
+                                    </div>
+                                    <strong id="badge-spf" class="badge-tag">--</strong>
+                                </div>
+                                <div class="protocol-description">Validates sending MTA IP against DNS TXT record.</div>
+                                <div class="protocol-forensic-impact" id="impact-spf">
+                                    <span class="impact-label">Forensic Evaluation:</span>
+                                    <span class="impact-text" id="text-impact-spf">Awaiting message headers...</span>
+                                </div>
+                            </div>
+
+                            <!-- DKIM Protocol Card -->
+                            <div class="protocol-card" id="card-dkim">
+                                <div class="protocol-header">
+                                    <div class="protocol-title-wrap">
+                                        <div class="protocol-name-line">
+                                            <strong class="protocol-abbr">DKIM</strong>
+                                            <span class="protocol-rfc">RFC 6376</span>
+                                        </div>
+                                        <div class="protocol-full">DomainKeys Identified Mail</div>
+                                    </div>
+                                    <strong id="badge-dkim" class="badge-tag">--</strong>
+                                </div>
+                                <div class="protocol-description">Verifies RSA/Ed25519 body &amp; header signature.</div>
+                                <div class="protocol-forensic-impact" id="impact-dkim">
+                                    <span class="impact-label">Forensic Evaluation:</span>
+                                    <span class="impact-text" id="text-impact-dkim">Awaiting cryptographic signature...</span>
+                                </div>
+                            </div>
+
+                            <!-- DMARC Protocol Card -->
+                            <div class="protocol-card" id="card-dmarc">
+                                <div class="protocol-header">
+                                    <div class="protocol-title-wrap">
+                                        <div class="protocol-name-line">
+                                            <strong class="protocol-abbr">DMARC</strong>
+                                            <span class="protocol-rfc">RFC 7489</span>
+                                        </div>
+                                        <div class="protocol-full">Domain Message Authentication</div>
+                                    </div>
+                                    <strong id="badge-dmarc" class="badge-tag">--</strong>
+                                </div>
+                                <div class="protocol-description">Enforces domain alignment between SPF/DKIM and From.</div>
+                                <div class="protocol-forensic-impact" id="impact-dmarc">
+                                    <span class="impact-label">Forensic Evaluation:</span>
+                                    <span class="impact-text" id="text-impact-dmarc">Awaiting alignment check...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <p id="auth-notice" class="source-note"></p>
+                    </article>
+
+                    <article class="card">
+                        <div class="card-title">Tamper-evident receipt</div>
+                        <dl class="telemetry-list compact">
+                            <div><dt>Ledger type</dt><dd id="ledger-type">--</dd></div>
+                            <div><dt>Record hash</dt><dd id="ledger-hash">--</dd></div>
+                        </dl>
+                        <p class="source-note">Only identifiers and hashes are stored in the local append-only chain. Email content stays off-ledger.</p>
+                    </article>
+
+                    <button class="btn-export" id="btn-export-pdf" type="button">
+                        <span>Export forensic analysis PDF</span>
+                    </button>
+                </aside>
+
+                <div class="main-column">
+                    <article class="card map-card" id="geo-infrastructure-card">
+                        <div class="card-title split-title">
+                            <span>Candidate relay infrastructure map</span>
+                            <small>Approximate GeoIP • network-level evidence</small>
+                        </div>
+                        <div id="map">
+                            <div class="map-radar-scanline" aria-hidden="true"></div>
+                            <div id="map-fallback" class="map-fallback">Map loads when Leaflet and map tiles are available.</div>
+                        </div>
+                    </article>
+
+                    <article class="card">
+                        <div class="card-title split-title">
+                            <span>Relay timestamp review</span>
+                            <small>Reversed timestamps may also result from clock skew</small>
+                        </div>
+                        <div class="table-responsive">
+                            <table>
+                                <thead><tr><th>Hop</th><th>IP</th><th>Infrastructure</th><th>Handoff</th><th>ΔT</th><th>Observation</th></tr></thead>
+                                <tbody id="hop-table-body"></tbody>
+                            </table>
+                        </div>
+                    </article>
+
+                    <article class="card">
+                        <div class="card-title">Explainable risk factors</div>
+                        <div id="factors-container" class="factor-list"></div>
+                    </article>
+
+                    <article class="card">
+                        <div class="card-title split-title"><span>IOC evidence graph</span><small>Single-email scope in this prototype</small></div>
+                        <div id="ioc-graph" class="ioc-graph"></div>
+                    </article>
+
+                    <article class="card limitations-card">
+                        <div class="card-title">Interpretation limits</div>
+                        <ul>
+                            <li>Authentication values are header-reported and are not independently replayed by this prototype.</li>
+                            <li>GeoIP identifies approximate registered infrastructure and may be affected by VPNs, proxies or cloud relays.</li>
+                            <li>A low score does not guarantee safety; analyst review remains necessary for consequential decisions.</li>
+                        </ul>
+                    </article>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>TRACE-MAIL AI • SIH26106 • Team ShadowGuard • Sir C.R. Reddy College of Engineering (Autonomous)</footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

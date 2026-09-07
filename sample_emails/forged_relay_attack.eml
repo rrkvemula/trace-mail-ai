@@ -1,0 +1,32 @@
+From: "Internal Security Alert" <support@microsoft-security-alert.xyz>
+To: admin@sircrrcoestd.in
+Subject: Critical security incident: Immediate password reset required
+Date: Mon, 07 Sep 2026 05:00:00 +0000
+Message-ID: <992144.forged.relay@microsoft-security-alert.xyz>
+Return-Path: <bounce@microsoft-security-alert.xyz>
+Authentication-Results: mx.sircrrcoestd.in;
+ dkim=none;
+ spf=fail (mx.sircrrcoestd.in: 198.98.56.12 is not permitted);
+ dmarc=fail (p=reject) header.from=microsoft-security-alert.xyz
+Received: from mail.trusted-university-relay.edu (mail.trusted-university-relay.edu [104.244.42.1])
+	by intermediary.spoofed-node.com (Postfix) with ESMTPS id A11849102
+	for <admin@sircrrcoestd.in>; Mon, 07 Sep 2026 05:00:00 +0000 (UTC)
+Received: from fake-hop.forged-mta.com (fake-hop.forged-mta.com [198.98.56.12])
+	by trusted-mta.cdn-edge.net (Postfix) with ESMTPS id B8891023
+	for <admin@sircrrcoestd.in>; Mon, 07 Sep 2026 04:30:00 +0000 (UTC)
+Received: from trusted-mta.cdn-edge.net (trusted-mta.cdn-edge.net [142.250.190.46])
+	by mx.sircrrcoestd.in (Postfix) with ESMTP id 99201AA3
+	for <admin@sircrrcoestd.in>; Mon, 07 Sep 2026 05:02:15 +0000 (UTC)
+Content-Type: text/plain; charset="utf-8"
+
+SECURITY ADVISORY:
+
+Unauthorized login attempts from an unverified IP in Moscow, Russia were detected on your organizational account.
+Your account credentials expired and have been placed on temporary hold.
+
+Action required: Verify your account immediately by following the secure portal below:
+https://login-verify-account.xyz/auth/reset
+
+Failure to respond within 2 hours will lead to complete suspension of mailbox privileges.
+
+Microsoft Security Operations Team

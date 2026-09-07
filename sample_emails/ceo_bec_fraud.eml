@@ -1,0 +1,32 @@
+From: "Dr. K. Venkateswara Rao (Director)" <admin-crre-director@secure-verify-alert.top>
+To: accounts@sircrrcoestd.in
+Subject: URGENT: Confidential wire transfer authorization required immediately
+Date: Mon, 07 Sep 2026 10:15:00 +0530
+Message-ID: <20260907101500.bec.fraud9912@secure-verify-alert.top>
+Return-Path: <bounce@secure-verify-alert.top>
+Authentication-Results: mx.sircrrcoestd.in;
+ dkim=fail reason="signature missing";
+ spf=fail (mx.sircrrcoestd.in: domain of secure-verify-alert.top does not designate 185.220.101.5 as permitted sender) smtp.mailfrom=bounce@secure-verify-alert.top;
+ dmarc=fail (p=none dis=none) header.from=secure-verify-alert.top
+Received-SPF: fail (mx.sircrrcoestd.in: 185.220.101.5 is not permitted)
+Received: from tor-exit.anonymizer.net (tor-exit.anonymizer.net [185.220.101.5])
+	by relay01.offshore-host.ru (Postfix) with ESMTPS id 4X981L0019
+	for <accounts@sircrrcoestd.in>; Mon, 07 Sep 2026 04:44:50 +0000 (UTC)
+Received: from relay01.offshore-host.ru (relay01.offshore-host.ru [194.26.29.110])
+	by mx.sircrrcoestd.in (Postfix) with ESMTPS id 3L118A0923
+	for <accounts@sircrrcoestd.in>; Mon, 07 Sep 2026 04:45:02 +0000 (UTC)
+Content-Type: text/plain; charset="utf-8"
+
+Accounts Department,
+
+I am currently in an emergency confidential meeting with state ministry officials. We have an overdue institutional invoice that must be settled immediately via international wire transfer to prevent cancellation of our laboratory equipment grant.
+
+Please execute an immediate wire transfer of INR 4,85,000 to the updated vendor account specified in the link below:
+http://185.220.101.5/portal/vendor-invoice-update.html
+
+Do not call my mobile as my phone is in silent mode during the board deliberation. Reply directly to this email once completed.
+
+Regards,
+Dr. K. Venkateswara Rao
+Director / Principal
+Sir C.R. Reddy College of Engineering

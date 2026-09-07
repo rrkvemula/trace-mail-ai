@@ -1,0 +1,34 @@
+From: "AICTE Official Bulletin" <no-reply@aicte-india.org>
+To: student-cell@sircrrcoestd.in
+Subject: SIH 2026 Guidelines and Campus Screening Schedule Notification
+Date: Mon, 07 Sep 2026 09:00:00 +0530
+Message-ID: <sih2026.notification.aicte.98762@aicte-india.org>
+Return-Path: <bounces@aicte-india.org>
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=aicte-india.org; s=20241001;
+	t=1788500000; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=;
+	h=From:To:Subject:Date:Message-ID;
+Authentication-Results: mx.sircrrcoestd.in;
+ dkim=pass header.i=@aicte-india.org header.s=20241001;
+ spf=pass (mx.sircrrcoestd.in: domain of aicte-india.org designates 13.233.120.45 as permitted sender) smtp.mailfrom=bounces@aicte-india.org;
+ dmarc=pass (p=reject sp=reject dis=none) header.from=aicte-india.org
+Received-SPF: pass (mx.sircrrcoestd.in: domain of aicte-india.org designates 13.233.120.45 as permitted sender)
+Received: from mail-server.aicte-india.org (mail-server.aicte-india.org [13.233.120.45])
+	by relay01.gov-cloud.in (Postfix) with ESMTPS id 41920AA81
+	for <student-cell@sircrrcoestd.in>; Mon, 07 Sep 2026 03:30:00 +0000 (UTC)
+Received: from relay01.gov-cloud.in (relay01.gov-cloud.in [14.139.60.2])
+	by mx.sircrrcoestd.in (Postfix) with ESMTPS id 52810BC92
+	for <student-cell@sircrrcoestd.in>; Mon, 07 Sep 2026 03:30:03 +0000 (UTC)
+Content-Type: text/plain; charset="utf-8"
+
+Dear Coordinators and Students,
+
+Greetings from the All India Council for Technical Education (AICTE).
+
+This is an official communication regarding the Smart India Hackathon (SIH) 2026 campus internal hackathon evaluation round. Participating teams must adhere to the 6-member guidelines (with mandatory female representation) and upload their preliminary problem statement presentations before the scheduled deadline.
+
+Official problem statements and submission portal: https://sih.gov.in
+
+Best wishes for your campus innovation rounds.
+
+Innovation Cell,
+All India Council for Technical Education (AICTE), New Delhi
