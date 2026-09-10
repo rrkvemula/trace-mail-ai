@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TraceMail AI — Forensic Intelligence Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lenis@1.1.20/dist/lenis.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://unpkg.com/globe.gl"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Space Grotesk', sans-serif; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    body { background: #030508; color: #e2e8f0; overflow-x: hidden; }
+    .grain { position: fixed; inset: 0; pointer-events: none; opacity: .04; background-image: url("https://grainy-gradients.vercel.app/noise.svg"); z-index: 999; }
+    #fluid { position: fixed; inset: 0; z-index: -1; }
+    
+    /* Frosted Glass Base */
+    .glass { 
+      background: rgba(10, 16, 30, 0.65); 
+      backdrop-filter: blur(24px); 
+      -webkit-backdrop-filter: blur(24px); 
+      border: 1px solid rgba(255, 255, 255, 0.08); 
+      transition: border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
+    }
+    
+    /* Interactive Cards - clean lift without boundary distortion */
+    .glass-card {
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    }
+    .glass-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(6, 182, 212, 0.45);
+      box-shadow: 0 10px 25px -8px rgba(6, 182, 212, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      background-color: rgba(16, 26, 48, 0.85);
+    }
+
+    /* Tabs & Pill Buttons - glowing pop without scale overlap */
+    .res-tab, .scenario-pill, .tab-btn {
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    .res-tab:hover, .scenario-pill:hover, .tab-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px -2px rgba(6, 182, 212, 0.4);
+      background: rgba(6, 182, 212, 0.18) !important;
+      border-color: rgba(6, 182, 212, 0.5) !important;
+      color: #38bdf8 !important;
+      opacity: 1 !important;
+    }
+    .res-tab.active {
+      background: rgba(6, 182, 212, 0.25) !important;
+      border-color: rgba(6, 182, 212, 0.6) !important;
+      color: #ffffff !important;
+      box-shadow: 0 0 16px rgba(6, 182, 212, 0.35);
+    }
+
+    .glow { box-shadow: 0 0 40px rgba(6, 182, 212, 0.15); }
+    .magnet { transition: transform .2s cubic-bezier(.23, 1, .32, 1); }
+    .reveal { clip-path: inset(0 0 100% 0); }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 999px; }
+    @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+  </style>
+</head>
+<body>
+  <div class="grain"></div>
+  <canvas id="fluid"></canvas>
+
+  <!-- NAV -->
+  <nav class="fixed top-0 w-full z-50 glass border-b border-white/5">
+    <div class="max-w-7xl mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
+      <div class="flex gap-3 items-center">
+        <div class="w-8 h-8 rounded-xl bg-cyan-400 glow flex items-center justify-center text-black font-black text-sm">T</div>
+        <span class="font-bold tracking-widest text-xs md:text-sm">TRACEMAIL / FORENSIC INTELLIGENCE v2</span>
+      </div>
+      <div class="hidden md:flex gap-8 text-[11px] tracking-widest opacity-60">
+        <a href="#scan" class="hover:opacity-100 transition">HEADER FORENSICS</a>
+        <a href="#scan" class="hover:opacity-100 transition">LINK SANDBOX</a>
+        <a href="#scan" class="hover:opacity-100 transition">GEO TRACE</a>
+        <a href="#results" class="hover:opacity-100 transition">FORENSIC RESULTS</a>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="#scan" class="magnet glass px-5 py-2 rounded-full text-xs tracking-widest hover:bg-white hover:text-black transition">DASHBOARD ● LIVE</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="max-w-7xl mx-auto px-4 md:px-8 min-h-[85vh] flex flex-col justify-center pt-28 pb-10">
+    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full glass border border-cyan-400/20 text-cyan-400 text-xs tracking-[0.2em] mb-6 w-fit">
+      <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+      <span>EVIDENCE-BASED FORENSIC PIPELINE • RFC 5322/7489</span>
+    </div>
+    <h1 class="text-[11vw] md:text-[6vw] leading-[0.92] font-light tracking-tight">
+      Trace <span class="font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-violet-400">Every</span><br>
+      <span class="reveal inline-block">Email.</span> <span class="reveal inline-block font-bold">Expose</span> Fraud.
+    </h1>
+    <p class="max-w-xl mt-6 opacity-60 text-sm leading-relaxed">
+      Lusion-grade forensic intelligence platform. Deep cryptographic header analysis, zero-SSRF static link inspection, explainable multi-signal BEC threat scoring & IP geolocation with ISP telemetry — visualized on a live 3D trace globe.
+    </p>
+
+    <!-- Quick Scenarios on Hero -->
+    <div class="flex flex-wrap gap-2.5 mt-8 items-center">
+      <span class="text-xs opacity-50 font-mono mr-1">Demo Scenarios:</span>
+      <button onclick="loadScenario('vendor_bank_change_bec.eml')" class="scenario-pill glass px-4 py-2 rounded-full text-xs text-rose-400 border border-rose-500/30 hover:bg-rose-500/10 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-building-columns"></i> Vendor BEC Bank Change
+      </button>
+      <button onclick="loadScenario('credential_harvest_ssrf_attack.eml')" class="scenario-pill glass px-4 py-2 rounded-full text-xs text-red-400 border border-red-500/30 hover:bg-red-500/10 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-skull"></i> Credential Harvest / SSRF
+      </button>
+      <button onclick="loadScenario('payroll_direct_deposit_bec.eml')" class="scenario-pill glass px-4 py-2 rounded-full text-xs text-amber-400 border border-amber-500/30 hover:bg-amber-500/10 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-money-check-dollar"></i> Payroll Spoofing BEC
+      </button>
+      <button onclick="loadScenario('legitimate_urgent_executive.eml')" class="scenario-pill glass px-4 py-2 rounded-full text-xs text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-circle-check"></i> Legit Urgent Exec (Evidence Precedence)
+      </button>
+      <button onclick="loadScenario('forged_relay_attack.eml')" class="scenario-pill glass px-4 py-2 rounded-full text-xs text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/10 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-route"></i> Forged Relay Attack
+      </button>
+    </div>
+
+    <div class="flex flex-wrap gap-4 mt-8">
+      <a href="#scan" class="magnet bg-white text-black px-8 py-4 rounded-full font-bold text-xs tracking-wider shadow-lg shadow-white/10 hover:bg-slate-200 transition flex items-center gap-2">
+        <span>RUN FORENSIC SCAN</span>
+        <i class="fa-solid fa-arrow-right"></i>
+      </a>
+      <span class="glass px-6 py-4 rounded-full text-xs flex items-center gap-2 opacity-80 font-mono">
+        <i class="fa-solid fa-fingerprint text-cyan-400"></i> Evidence Hash • Chain of Custody • Tamper-Evident Ledger
+      </span>
+    </div>
+  </section>
+
+  <!-- SCAN BENTO -->
+  <section id="scan" class="max-w-7xl mx-auto px-4 md:px-8 pb-12">
+    <div class="grid lg:grid-cols-12 gap-6 w-full items-start">
+
+      <!-- LEFT: SCAN CONSOLE -->
+      <div class="lg:col-span-7 w-full min-w-0 glass rounded-3xl p-6 md:p-8 glow flex flex-col justify-between">
+        <div>
+          <div class="flex justify-between items-center mb-4">
+            <div>
+              <h2 class="text-xl font-bold tracking-tight">Forensic Scan Console</h2>
+              <p class="text-[11px] opacity-40 mt-0.5">Parse raw headers, RFC 5322 invariants, safe link inspection, and BEC heuristics</p>
+            </div>
+            <span class="text-[10px] tracking-widest bg-cyan-400 text-black font-bold px-3 py-1 rounded-full">FORENSIC PIPELINE</span>
+          </div>
+
+          <!-- In-App Sample Threat Repository Selector -->
+          <div class="bg-cyan-950/40 border border-cyan-500/30 rounded-2xl p-4 mb-5 shadow-lg shadow-cyan-950/20">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-cyan-300 flex items-center gap-2">
+                <i class="fa-solid fa-folder-open text-cyan-400"></i>
+                <span>Sample Threat Repository (In-App)</span>
+              </span>
+              <span id="sampleLoadBadge" class="text-[10px] font-mono opacity-60 text-cyan-200">9 pre-loaded attacks & clean samples</span>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2.5">
+              <select id="sampleSelect" onchange="onSampleDropdownChange(this.value)" class="w-full sm:flex-1 bg-black/70 text-xs font-mono rounded-xl p-2.5 border border-white/20 text-white focus:border-cyan-400 outline-none cursor-pointer min-w-0">
+                <option value="">-- Select In-App Sample Email to Load into Console --</option>
+                <option value="vendor_bank_change_bec.eml">🚨 Vendor BEC: Bank Change Wire Fraud (High Risk / Payment Diversion)</option>
+                <option value="credential_harvest_ssrf_attack.eml">☠️ Credential Harvest: SSRF & Punycode (High Risk / Harvest)</option>
+                <option value="payroll_direct_deposit_bec.eml">⚠️ Payroll BEC: VIP Display Name Spoofing (High Risk)</option>
+                <option value="ceo_bec_fraud.eml">💼 CEO BEC: Urgent Wire Fraud Scam (High Risk)</option>
+                <option value="forged_relay_attack.eml">🔄 Forged Relay: Hop Spoofing & IP Mismatch (Suspicious)</option>
+                <option value="credential_phishing_portal.eml">🎣 Credential Phishing: O365 Fake Portal (High Risk)</option>
+                <option value="legitimate_urgent_executive.eml">🛡️ Legit Urgent Executive Memo (Evidence Precedence / Clean Pass)</option>
+                <option value="legitimate_delivery.eml">✅ Legitimate Delivery (SPF / DKIM / DMARC Pass)</option>
+                <option value="legitimate_password_expiry_notice.eml">✅ Legitimate Password Expiry Notice (Corporate IT / Clean)</option>
+              </select>
+              <div class="flex gap-2 shrink-0">
+                <button type="button" onclick="importSelectedSample(false)" class="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border border-white/10" title="Load sample text into console without scanning">
+                  <i class="fa-solid fa-file-import text-cyan-400"></i>
+                  <span>Load Into Console</span>
+                </button>
+                <button type="button" onclick="importSelectedSample(true)" class="px-3.5 py-2 bg-cyan-400 hover:bg-cyan-300 text-black font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-md shadow-cyan-400/20" title="Load sample and immediately run deep scan">
+                  <i class="fa-solid fa-bolt"></i>
+                  <span>Load & Deep Scan</span>
+                </button>
+              </div>
+            </div>
+            <!-- Feedback banner on import -->
+            <div id="importNotice" class="hidden mt-2.5 p-2 bg-cyan-900/30 border border-cyan-400/40 rounded-xl text-[11px] font-mono text-cyan-300 flex items-center gap-2">
+              <i class="fa-solid fa-circle-check text-cyan-400"></i>
+              <span id="importNoticeText">Sample email loaded into console editor.</span>
+            </div>
+          </div>
+
+          <form id="f" action="javascript:void(0);" onsubmit="runForensicScan(); return false;" class="space-y-4">
+            <label id="dropZone" class="glass rounded-2xl p-5 flex flex-col items-center justify-center border-dashed border-white/20 cursor-pointer hover:bg-white/5 transition group">
+              <i class="fa-solid fa-cloud-arrow-up text-cyan-400 text-xl mb-1 group-hover:scale-110 transition"></i>
+              <span class="text-xs opacity-70 group-hover:opacity-100 transition" id="fileLabel">Drop .eml file or click to browse</span>
+              <span class="text-[10px] opacity-30 mt-0.5">MIME • Headers • RFC 5322/7489 Invariants</span>
+              <input type="file" name="eml" id="fileInput" accept=".eml" class="hidden">
+            </label>
+
+            <div class="relative">
+              <textarea name="email_body" id="emailBody" placeholder="Or paste raw email with headers (Return-Path, Received, Authentication-Results, Subject...)" class="w-full h-36 bg-black/40 rounded-2xl p-4 text-xs font-mono border border-white/10 focus:border-cyan-400 outline-none transition leading-relaxed"></textarea>
+              <button type="button" onclick="clearForm()" class="absolute top-3 right-3 text-[10px] opacity-40 hover:opacity-100 transition">Clear</button>
+            </div>
+
+            <input name="from" id="fromInput" placeholder="Sender Override: e.g. ceo@victim-company.com" class="w-full bg-black/40 rounded-xl p-3.5 text-xs font-mono border border-white/10 focus:border-cyan-400 outline-none transition">
+
+            <button type="button" onclick="runForensicScan()" id="scanBtn" class="magnet w-full bg-cyan-400 text-black py-4 rounded-full font-bold tracking-widest text-xs hover:bg-cyan-300 transition shadow-lg shadow-cyan-400/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer">
+              <i class="fa-solid fa-bolt"></i>
+              <span>RUN FORENSIC DEEP SCAN</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Quick Status Pill in Console -->
+        <div class="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-[10px] opacity-50 font-mono">
+          <span>PIPELINE: RFC-5322 + ZERO-SSRF LINKS + GEOIP</span>
+          <span id="scanStatusMsg">READY</span>
+        </div>
+      </div>
+
+      <!-- RIGHT: 3D GLOBE + TELEMETRY -->
+      <div class="lg:col-span-5 w-full min-w-0 space-y-6">
+        <!-- 3D GLOBE & GEOSPATIAL INTELLIGENCE RADAR -->
+        <div class="glass rounded-3xl p-3 overflow-hidden relative group">
+          <!-- Top HUD Overlay on Globe -->
+          <div class="absolute top-5 left-5 right-5 z-20 flex justify-between items-center pointer-events-none">
+            <span class="px-2.5 py-1 rounded-full bg-black/75 border border-cyan-400/30 text-[10px] font-mono text-cyan-300 flex items-center gap-1.5 shadow-lg shadow-black/50 backdrop-blur-md">
+              <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
+              <span>GEOINT RADAR ● LIVE</span>
+            </span>
+            <div class="flex gap-1.5 pointer-events-auto">
+              <button type="button" onclick="toggleGlobeOrbit()" id="orbitBtn" class="px-2.5 py-1 bg-black/75 hover:bg-black text-cyan-300 border border-cyan-400/30 rounded-lg text-[10px] font-mono transition backdrop-blur-md shadow-md cursor-pointer" title="Toggle automatic planetary orbit">
+                ⟳ Orbit: ON
+              </button>
+              <button type="button" onclick="focusThreatOrigin()" class="px-2.5 py-1 bg-black/75 hover:bg-black text-white border border-white/20 rounded-lg text-[10px] font-mono transition backdrop-blur-md shadow-md cursor-pointer" title="Center camera on detected threat origin node">
+                🎯 Focus
+              </button>
+              <button type="button" onclick="resetGlobeView()" class="px-2.5 py-1 bg-black/75 hover:bg-black text-white border border-white/20 rounded-lg text-[10px] font-mono transition backdrop-blur-md shadow-md cursor-pointer" title="Reset global perspective">
+                🌍 Reset
+              </button>
+            </div>
+          </div>
+
+          <div id="globe" class="h-[320px] w-full rounded-2xl bg-black cursor-grab active:cursor-grabbing"></div>
+
+          <!-- Bottom Telemetry Bar -->
+          <div class="p-3 flex justify-between items-center text-[10px] tracking-widest font-mono border-t border-white/5 bg-black/30 rounded-b-2xl">
+            <span class="flex items-center gap-1.5 opacity-60">
+              <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+              ORIGIN TRACE → INBOX
+            </span>
+            <span id="ipLabel" class="text-cyan-300 font-bold">AWAITING SCAN TARGET</span>
+          </div>
+
+          <!-- Quick Tip Pill -->
+          <div class="px-3 pb-1 pt-1.5 text-[9px] font-mono opacity-40 flex justify-between items-center">
+            <span>🖱️ Drag to rotate • Scroll to zoom</span>
+            <span id="hudCoords">Sensor Grid Active</span>
+          </div>
+        </div>
+
+        <!-- SCORE METRIC TABS -->
+        <div class="glass rounded-3xl p-6 grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p id="score" class="text-4xl font-bold font-mono text-slate-500">--</p>
+            <p class="text-[10px] tracking-widest opacity-50 mt-1">THREAT SCORE</p>
+            <div class="w-full bg-white/10 h-1.5 rounded-full mt-2 overflow-hidden">
+              <div id="bar" class="h-1.5 bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500 rounded-full transition-all duration-700" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="flex flex-col justify-center">
+            <p id="label" class="text-sm font-bold leading-tight text-slate-400">AWAITING<br>CLASSIFICATION</p>
+            <p class="text-[10px] tracking-widest opacity-50 mt-1">RISK VERDICT</p>
+          </div>
+          <div class="flex flex-col justify-center">
+            <p id="bec" class="text-xs font-bold font-mono text-cyan-300">—</p>
+            <p class="text-[10px] tracking-widest opacity-50 mt-1">BEC PATTERN</p>
+            <p id="conf" class="text-[10px] mt-0.5 opacity-60 font-mono"></p>
+          </div>
+        </div>
+
+        <!-- AUTH PILLS -->
+        <div class="glass rounded-3xl p-4 flex flex-wrap gap-2 text-[10px] items-center justify-around font-mono">
+          <div class="flex items-center gap-1.5">
+            <span class="bg-white/10 text-slate-300 px-2.5 py-1 rounded-full">SPF</span>
+            <span id="spf" class="px-3 py-1 rounded-full border border-white/20 text-slate-400">—</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="bg-white/10 text-slate-300 px-2.5 py-1 rounded-full">DKIM</span>
+            <span id="dkim" class="px-3 py-1 rounded-full border border-white/20 text-slate-400">—</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="bg-white/10 text-slate-300 px-2.5 py-1 rounded-full">DMARC</span>
+            <span id="dmarc" class="px-3 py-1 rounded-full border border-white/20 text-slate-400">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPREHENSIVE FORENSIC AI RESULTS SECTION -->
+  <section id="results" class="max-w-7xl mx-auto px-4 md:px-8 pb-24">
+    <div class="glass rounded-3xl p-6 md:p-10 glow space-y-6">
+
+      <!-- Section Header -->
+      <div class="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-5">
+        <div>
+          <div class="flex items-center gap-2.5">
+            <i class="fa-solid fa-dna text-cyan-400 text-lg"></i>
+            <h3 class="text-2xl font-bold tracking-tight">Forensic Intelligence Suite</h3>
+          </div>
+          <p class="text-xs opacity-50 mt-1">Deep visual breakdown of forensic artifacts, invariant checks & chain-of-custody</p>
+        </div>
+
+        <!-- View Switcher Tabs -->
+        <div class="flex flex-wrap gap-1.5 glass p-1.5 rounded-2xl border border-white/10 text-xs">
+          <button onclick="switchResultTab('verdict')" class="res-tab active px-3.5 py-1.5 rounded-xl font-medium transition" data-res="verdict">Executive Verdict</button>
+          <button onclick="switchResultTab('headers')" class="res-tab px-3.5 py-1.5 rounded-xl font-medium opacity-60 hover:opacity-100 transition" data-res="headers">RFC Headers</button>
+          <button onclick="switchResultTab('links')" class="res-tab px-3.5 py-1.5 rounded-xl font-medium opacity-60 hover:opacity-100 transition" data-res="links">Link Sandbox</button>
+          <button onclick="switchResultTab('geo')" class="res-tab px-3.5 py-1.5 rounded-xl font-medium opacity-60 hover:opacity-100 transition" data-res="geo">Geo & WHOIS</button>
+          <button onclick="switchResultTab('ioc')" class="res-tab px-3.5 py-1.5 rounded-xl font-medium opacity-60 hover:opacity-100 transition" data-res="ioc">IOC Graph</button>
+          <button onclick="switchResultTab('raw')" class="res-tab px-3.5 py-1.5 rounded-xl font-medium opacity-60 hover:opacity-100 transition" data-res="raw">Raw Evidence JSON</button>
+          <button onclick="switchResultTab('copilot')" class="res-tab px-3.5 py-1.5 rounded-xl font-medium opacity-75 hover:opacity-100 transition flex items-center gap-1.5 text-cyan-300 border border-cyan-500/30 bg-cyan-950/20" data-res="copilot">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+            <i class="fa-solid fa-brain-circuit"></i>
+            <span>AI Copilot</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="resEmptyState" class="py-16 text-center opacity-40 space-y-3">
+        <i class="fa-solid fa-radar text-4xl mb-2 block"></i>
+        <p class="text-sm">No forensic scan triggered yet.</p>
+        <p class="text-xs max-w-md mx-auto">Upload an .eml email file or select a pre-loaded test scenario above to review detailed forensic indicators.</p>
+      </div>
+
+      <!-- Dynamic Report Content -->
+      <div id="resReport" class="hidden space-y-6">
+
+        <!-- TAB 1: EXECUTIVE VERDICT -->
+        <div id="tab-verdict" class="space-y-6">
+          <!-- Verdict Hero Banner -->
+          <div id="verdictBanner" class="glass rounded-2xl p-6 border flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+              <div id="verdictIconBox" class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl"></div>
+              <div>
+                <span id="verdictBadge" class="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full"></span>
+                <h4 id="verdictHeadline" class="text-xl font-bold tracking-wide mt-1"></h4>
+                <p id="verdictSummary" class="text-xs opacity-60 mt-0.5 max-w-xl"></p>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] tracking-widest opacity-40 block font-mono">CONFIDENCE INDEX</span>
+              <span id="confidenceNum" class="text-2xl font-bold font-mono text-cyan-400">--%</span>
+            </div>
+          </div>
+
+          <!-- 2 Columns: Reasons & BEC Vector -->
+          <div class="grid md:grid-cols-2 gap-6">
+            <!-- Key Risk Indicators -->
+            <div class="glass rounded-2xl p-6 space-y-3">
+              <h5 class="text-xs font-bold tracking-widest text-cyan-400 uppercase flex items-center gap-2">
+                <i class="fa-solid fa-shield-virus"></i> Key Risk Indicators Flagged
+              </h5>
+              <ul id="reasonsList" class="space-y-2 text-xs"></ul>
+            </div>
+
+            <!-- BEC Pattern Vector Analysis -->
+            <div class="glass rounded-2xl p-6 space-y-4">
+              <h5 class="text-xs font-bold tracking-widest text-cyan-400 uppercase flex items-center gap-2">
+                <i class="fa-solid fa-user-ninja"></i> Business Email Compromise Vector
+              </h5>
+              <div class="bg-black/40 rounded-xl p-4 border border-white/10 space-y-2">
+                <div class="flex justify-between items-center text-xs">
+                  <span class="opacity-50 font-mono">DETECTED VECTOR</span>
+                  <span id="becVectorBadge" class="font-bold font-mono text-cyan-300">--</span>
+                </div>
+                <p id="becGuidance" class="text-xs opacity-70 leading-relaxed"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chain of Custody & Tamper-Evident SHA-256 -->
+          <div class="glass rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4 font-mono text-xs border border-cyan-400/20">
+            <div class="flex items-center gap-3">
+              <i class="fa-solid fa-fingerprint text-cyan-400 text-lg"></i>
+              <div>
+                <span class="text-[10px] tracking-widest opacity-40 block">CRYPTOGRAPHIC EVIDENCE HASH (SHA-256)</span>
+                <span id="hashVal" class="text-cyan-300 select-all break-all">--</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <span id="timestampVal" class="text-[11px] opacity-40"></span>
+              <button onclick="copyEvidenceHash()" class="magnet glass px-4 py-1.5 rounded-full text-xs hover:bg-white hover:text-black transition">
+                <i class="fa-regular fa-copy mr-1"></i> Copy Hash
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: RFC HEADERS FORENSICS -->
+        <div id="tab-headers" class="hidden space-y-6">
+          <div class="grid sm:grid-cols-3 gap-4 text-center">
+            <div id="spfBox" class="glass rounded-2xl p-4">
+              <span class="text-[10px] opacity-50 tracking-widest block mb-1">SPF AUTHENTICATION</span>
+              <span id="spfStatus" class="text-xs font-bold font-mono px-3 py-1 rounded-full">--</span>
+            </div>
+            <div id="dkimBox" class="glass rounded-2xl p-4">
+              <span class="text-[10px] opacity-50 tracking-widest block mb-1">DKIM CRYPTO SIGNATURE</span>
+              <span id="dkimStatus" class="text-xs font-bold font-mono px-3 py-1 rounded-full">--</span>
+            </div>
+            <div id="dmarcBox" class="glass rounded-2xl p-4">
+              <span class="text-[10px] opacity-50 tracking-widest block mb-1">DMARC POLICY COMPLIANCE</span>
+              <span id="dmarcStatus" class="text-xs font-bold font-mono px-3 py-1 rounded-full">--</span>
+            </div>
+          </div>
+
+          <!-- Discrepancy Table -->
+          <div class="glass rounded-2xl p-6 overflow-x-auto">
+            <h5 class="text-xs font-bold tracking-widest text-cyan-400 uppercase mb-4">Header Invariant & Discrepancy Audit</h5>
+            <table class="w-full text-xs font-mono">
+              <tbody class="divide-y divide-white/10">
+                <tr><td class="py-2.5 opacity-50 w-48">Sender From Header:</td><td id="hdrFrom" class="py-2.5 text-white">--</td></tr>
+                <tr><td class="py-2.5 opacity-50">Envelope Return-Path:</td><td id="hdrReturnPath" class="py-2.5 text-white">--</td></tr>
+                <tr><td class="py-2.5 opacity-50">Reply-To Route:</td><td id="hdrReplyTo" class="py-2.5 text-white">--</td></tr>
+                <tr><td class="py-2.5 opacity-50">Originating IP:</td><td id="hdrOriginIp" class="py-2.5 text-cyan-300">--</td></tr>
+                <tr><td class="py-2.5 opacity-50">Total Intermediate Hops:</td><td id="hdrHops" class="py-2.5 text-white">--</td></tr>
+                <tr><td class="py-2.5 opacity-50">Spoof Index:</td><td id="hdrSpoof" class="py-2.5 text-white">--</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB 3: LINK DEEP SCAN -->
+        <div id="tab-links" class="hidden space-y-4">
+          <div class="glass rounded-2xl p-6">
+            <div class="flex justify-between items-center mb-4">
+              <h5 class="text-xs font-bold tracking-widest text-cyan-400 uppercase">Hyperlink Threat & Redirection Sandbox</h5>
+              <span id="linksSummary" class="text-[10px] font-mono opacity-50"></span>
+            </div>
+            <div id="linksList" class="space-y-2.5">
+              <p class="text-xs opacity-40 text-center py-6">No links parsed yet.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: GEO & WHOIS -->
+        <div id="tab-geo" class="hidden space-y-6">
+          <div class="grid md:grid-cols-2 gap-6">
+            <div class="glass rounded-2xl p-6 space-y-3">
+              <h5 class="text-xs font-bold tracking-widest text-cyan-400 uppercase flex items-center gap-2">
+                <i class="fa-solid fa-map-location-dot"></i> Origin GeoLocation
+              </h5>
+              <div class="space-y-2 text-xs font-mono">
+                <div class="flex justify-between py-1.5 border-b border-white/5"><span class="opacity-50">IP Address:</span><span id="geoIpVal" class="text-white">--</span></div>
+                <div class="flex justify-between py-1.5 border-b border-white/5"><span class="opacity-50">Location:</span><span id="geoLocVal" class="text-white">--</span></div>
+                <div class="flex justify-between py-1.5 border-b border-white/5"><span class="opacity-50">Coordinates:</span><span id="geoCoordsVal" class="text-white">--</span></div>
+                <div class="flex justify-between py-1.5"><span class="opacity-50">Organization / ISP:</span><span id="geoOrgVal" class="text-white truncate max-w-[200px]">--</span></div>
+              </div>
+            </div>
+
+            <div class="glass rounded-2xl p-6 space-y-3">
+              <h5 class="text-xs font-bold tracking-widest text-cyan-400 uppercase flex items-center gap-2">
+                <i class="fa-solid fa-globe"></i> Domain WHOIS & Cloud Status
+              </h5>
+              <div class="space-y-2 text-xs font-mono">
+                <div class="flex justify-between py-1.5 border-b border-white/5"><span class="opacity-50">Registrar:</span><span id="whoisReg" class="text-white truncate max-w-[200px]">--</span></div>
+                <div class="flex justify-between py-1.5 border-b border-white/5"><span class="opacity-50">Creation Date:</span><span id="whoisDate" class="text-white">--</span></div>
+                <div class="flex justify-between py-1.5"><span class="opacity-50">Cloud / Hosting Flag:</span><span id="hostingFlag" class="text-white">--</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass rounded-2xl p-6">
+            <h5 class="text-xs font-bold tracking-widest text-cyan-400 uppercase mb-3">MX Mail Exchange Route</h5>
+            <div id="mxRecords" class="text-xs font-mono opacity-60">No MX records parsed yet.</div>
+          </div>
+        </div>
+
+        <!-- TAB 5: IOC GRAPH -->
+        <div id="tab-ioc" class="hidden space-y-4">
+          <div class="glass rounded-2xl p-6">
+            <div class="flex justify-between items-center mb-4">
+              <h5 class="text-xs font-bold tracking-widest text-cyan-400 uppercase flex items-center gap-2">
+                <i class="fa-solid fa-network-wired"></i> IOC Evidence Relationship Graph
+              </h5>
+              <span id="iocCountBadge" class="text-[10px] font-mono text-cyan-300">0 Nodes</span>
+            </div>
+            <p class="text-xs opacity-50 mb-4">Cryptographically linked evidence graph connecting sender identity, intermediate hops, link domains, and forensic hashes.</p>
+            <div id="iocGraphContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <p class="text-xs opacity-40 col-span-full py-8 text-center">Run a scan to build the IOC relationship graph.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 6: RAW EVIDENCE JSON -->
+        <div id="tab-raw" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <span class="text-xs opacity-50 font-mono">Consolidated Forensic JSON Payload:</span>
+            <button onclick="copyRawEvidence()" class="magnet glass px-4 py-1.5 rounded-full text-xs font-mono hover:bg-white hover:text-black transition">
+              <i class="fa-regular fa-copy mr-1"></i> Copy Payload
+            </button>
+          </div>
+          <pre id="out" class="bg-black/60 rounded-2xl p-5 text-[11px] leading-relaxed whitespace-pre-wrap max-h-96 overflow-auto border border-white/10 font-mono text-cyan-300">Awaiting scan... Evidence hash & chain-of-custody will appear here.</pre>
+        </div>
+
+        <!-- TAB 7: AI FORENSIC COPILOT -->
+        <div id="tab-copilot" class="hidden space-y-5">
+          <!-- Copilot HUD Banner -->
+          <div class="glass rounded-2xl p-5 border border-cyan-500/30 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-cyan-950/30 via-black/40 to-violet-950/30">
+            <div class="flex items-center gap-3.5">
+              <div class="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 text-xl shadow-lg shadow-cyan-500/20">
+                <i class="fa-solid fa-brain-circuit animate-pulse"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-bold tracking-wide text-white">Forensic AI Copilot</span>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    ONLINE
+                  </span>
+                  <span id="copilotReportBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-white/10 text-cyan-300">
+                    Awaiting Target Scan
+                  </span>
+                </div>
+                <p class="text-xs opacity-60 mt-0.5 font-mono">Real-time reasoning over RFC headers, domain WHOIS, MTA latency & out-of-band protocols</p>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" onclick="clearCopilotChat()" class="px-3 py-1.5 glass rounded-xl text-xs font-mono opacity-70 hover:opacity-100 hover:text-red-400 transition" title="Clear conversation stream">
+                <i class="fa-solid fa-trash-can mr-1"></i> Clear Chat
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Suggestion Prompt Chips -->
+          <div class="space-y-1.5">
+            <span class="text-[10px] font-mono tracking-widest opacity-50 uppercase flex items-center gap-1">
+              <i class="fa-solid fa-bolt text-amber-400"></i> Forensic Inquiry Presets
+            </span>
+            <div id="copilotChips" class="flex flex-wrap gap-2">
+              <button type="button" onclick="askCopilotPrompt('Explain Overall Threat Verdict')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
+                📊 Explain Verdict
+              </button>
+              <button type="button" onclick="askCopilotPrompt('Explain SPF, DKIM & DMARC Headers')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
+                🛡️ Explain Headers (SPF/DKIM)
+              </button>
+              <button type="button" onclick="askCopilotPrompt('Inspect Sender Domain & WHOIS')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
+                🌐 Inspect Domain & WHOIS
+              </button>
+              <button type="button" onclick="askCopilotPrompt('Explain MTA Hops & Timing Delays (ΔT)')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
+                ✈️ Analyze MTA Hops
+              </button>
+              <button type="button" onclick="askCopilotPrompt('Is it safe to open or click links?')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
+                🚨 Is it Safe to Open?
+              </button>
+              <button type="button" onclick="askCopilotPrompt('What out-of-band verification is needed?')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
+                🔒 Out-of-Band Steps
+              </button>
+            </div>
+          </div>
+
+          <!-- Chat Stream Container -->
+          <div id="copilotChatStream" class="glass rounded-2xl p-5 min-h-[360px] max-h-[500px] overflow-y-auto space-y-4 border border-white/10 font-sans text-sm">
+            <!-- Initial Assistant Greeting -->
+            <div class="flex gap-3 items-start">
+              <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex-shrink-0 flex items-center justify-center text-cyan-300 text-xs">
+                <i class="fa-solid fa-robot"></i>
+              </div>
+              <div class="glass bg-white/5 p-4 rounded-2xl border border-white/10 max-w-2xl space-y-2 text-slate-200">
+                <div class="text-[10px] font-mono text-cyan-400 font-bold uppercase tracking-wider flex items-center justify-between">
+                  <span>TraceMail Forensic Copilot</span>
+                  <span class="opacity-50">READY</span>
+                </div>
+                <p class="text-xs leading-relaxed">
+                  Greetings Analyst. I am your specialized RFC 5322 & Email Threat Intelligence assistant.
+                  When you scan an email, I ingest its authentication invariants, routing timestamps, domain records, and link telemetry to explain any threat factor in clear detail.
+                </p>
+                <p class="text-xs opacity-75 font-mono text-slate-300">
+                  Try selecting a demo sample above or click one of the quick inquiry presets!
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chat Input Bar -->
+          <div class="glass rounded-2xl p-2.5 border border-white/10 flex items-center gap-2 focus-within:border-cyan-400/60 transition">
+            <div class="pl-2 text-cyan-400 text-sm">
+              <i class="fa-solid fa-terminal"></i>
+            </div>
+            <textarea id="copilotInput" rows="1" placeholder="Ask about this email's headers, domain, WHOIS, hop latency, or safety..." class="w-full bg-transparent border-0 focus:ring-0 focus:outline-none text-xs font-mono text-white placeholder-white/30 resize-none py-2 px-1"></textarea>
+            <button id="copilotSendBtn" type="button" onclick="sendCopilotMessage()" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold font-mono text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-lg shadow-cyan-500/20">
+              <span>ASK</span>
+              <i class="fa-solid fa-paper-plane text-[10px]"></i>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- FLOATING COPILOT LAUNCHER BUTTON -->
+  <button id="copilotFloatingBtn" type="button" onclick="openCopilotTab()" class="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl bg-black/85 hover:bg-black text-cyan-300 border border-cyan-400/40 shadow-2xl shadow-cyan-500/30 backdrop-blur-xl flex items-center gap-2.5 font-mono text-xs font-bold transition transform hover:translate-y-[-2px] cursor-pointer group">
+    <span class="relative flex h-2.5 w-2.5">
+      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+    </span>
+    <i class="fa-solid fa-robot text-cyan-400 group-hover:rotate-12 transition-transform"></i>
+    <span>AI Forensic Copilot</span>
+  </button>
+
+  <!-- MARQUEE -->
+  <div class="mt-8 glass rounded-full py-4 overflow-hidden whitespace-nowrap border-y border-white/10">
+    <div class="animate-[marquee_25s_linear_infinite] flex gap-10 text-xs tracking-[0.2em] opacity-60 font-mono">
+      <span>SPOOFED SENDER DETECTION •</span>
+      <span>DECEPTIVE DOMAINS •</span>
+      <span>MALICIOUS LINKS •</span>
+      <span>OBFUSCATED URLS •</span>
+      <span>PAYMENT DIVERSION •</span>
+      <span>FAKE INVOICE •</span>
+      <span>CREDENTIAL HARVESTING •</span>
+      <span>EXECUTIVE IMPERSONATION •</span>
+      <span>SPOOFED SENDER DETECTION •</span>
+      <span>DECEPTIVE DOMAINS •</span>
+      <span>MALICIOUS LINKS •</span>
+      <span>OBFUSCATED URLS •</span>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // TRACE-MAIL AI FORENSIC INTELLIGENCE ENGINE (ZERO-DEPENDENCY CORE)
+    // =========================================================================
+    let currentForensicReport = null;
+    let globe = null;
+    let lastThreatOrigin = null;
+    let globeAutoRotate = true;
+
+    // Globe HUD Controls
+    function toggleGlobeOrbit() {
+      if (!globe || typeof globe.controls !== 'function') return;
+      globeAutoRotate = !globeAutoRotate;
+      try {
+        globe.controls().autoRotate = globeAutoRotate;
+      } catch (e) {}
+      const btn = document.getElementById('orbitBtn');
+      if (btn) {
+        btn.innerText = globeAutoRotate ? '⟳ Orbit: ON' : '⟳ Orbit: OFF';
+        btn.className = globeAutoRotate
+          ? 'px-2.5 py-1 bg-black/75 hover:bg-black text-cyan-300 border border-cyan-400/30 rounded-lg text-[10px] font-mono transition backdrop-blur-md shadow-md cursor-pointer'
+          : 'px-2.5 py-1 bg-black/75 hover:bg-black text-slate-400 border border-white/20 rounded-lg text-[10px] font-mono transition backdrop-blur-md shadow-md cursor-pointer';
+      }
+    }
+
+    function focusThreatOrigin() {
+      if (!globe || typeof globe.pointOfView !== 'function') return;
+      if (lastThreatOrigin && !isNaN(lastThreatOrigin.lat) && !isNaN(lastThreatOrigin.lng)) {
+        if (typeof globe.controls === 'function') {
+          try {
+            globe.controls().autoRotate = false;
+            globeAutoRotate = false;
+          } catch (e) {}
+          const btn = document.getElementById('orbitBtn');
+          if (btn) {
+            btn.innerText = '⟳ Orbit: OFF';
+            btn.className = 'px-2.5 py-1 bg-black/75 hover:bg-black text-slate-400 border border-white/20 rounded-lg text-[10px] font-mono transition backdrop-blur-md shadow-md cursor-pointer';
+          }
+        }
+        globe.pointOfView({ lat: lastThreatOrigin.lat, lng: lastThreatOrigin.lng, altitude: 1.5 }, 1200);
+      } else {
+        alert('No external threat origin detected in current scan. Please select or paste a sample email with external hops (e.g., SSRF Attack or BEC Wire Fraud).');
+      }
+    }
+
+    function resetGlobeView() {
+      if (!globe || typeof globe.pointOfView !== 'function') return;
+      globe.pointOfView({ lat: 20.5937, lng: 78.9629, altitude: 2.2 }, 1200);
+    }
+
+    // 1. Clear Console Form
+    function clearForm() {
+      const eb = document.getElementById('emailBody');
+      const fi = document.getElementById('fromInput');
+      const fl = document.getElementById('fileInput');
+      const lb = document.getElementById('fileLabel');
+      const nt = document.getElementById('importNotice');
+      if (eb) eb.value = '';
+      if (fi) fi.value = '';
+      if (fl) fl.value = '';
+      if (lb) lb.innerText = 'Drop .eml file or click to browse';
+      if (nt) nt.classList.add('hidden');
+    }
+
+    // 2. Switch Results Tab
+    function switchResultTab(tabKey) {
+      const emptyState = document.getElementById('resEmptyState');
+      if (emptyState && tabKey === 'copilot') emptyState.classList.add('hidden');
+      const repState = document.getElementById('resReport');
+      if (repState && tabKey === 'copilot') repState.classList.remove('hidden');
+
+      document.querySelectorAll('.res-tab').forEach(b => {
+        b.classList.remove('active', 'bg-white', 'text-black', 'shadow');
+        b.classList.add('opacity-60');
+      });
+      document.querySelectorAll('#resReport > div').forEach(div => div.classList.add('hidden'));
+
+      const activeBtn = document.querySelector('.res-tab[data-res="' + tabKey + '"]');
+      if (activeBtn) {
+        activeBtn.classList.add('active', 'bg-white', 'text-black', 'shadow');
+        activeBtn.classList.remove('opacity-60');
+      }
+
+      const pane = document.getElementById('tab-' + tabKey);
+      if (pane) pane.classList.remove('hidden');
+    }
+
+    // -------------------------------------------------------------------------
+    // AI FORENSIC COPILOT CONTROLS & CHAT STREAM
+    // -------------------------------------------------------------------------
+    let copilotChatHistory = [];
+
+    function openCopilotTab() {
+      const resEl = document.getElementById('results');
+      if (resEl) resEl.scrollIntoView({ behavior: 'smooth' });
+      switchResultTab('copilot');
+      const inp = document.getElementById('copilotInput');
+      if (inp) setTimeout(() => inp.focus(), 400);
+    }
+
+    function clearCopilotChat() {
+      copilotChatHistory = [];
+      const stream = document.getElementById('copilotChatStream');
+      if (stream) {
+        stream.innerHTML = `
+          <div class="flex gap-3 items-start">
+            <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex-shrink-0 flex items-center justify-center text-cyan-300 text-xs">
+              <i class="fa-solid fa-robot"></i>
+            </div>
+            <div class="glass bg-white/5 p-4 rounded-2xl border border-white/10 max-w-2xl space-y-2 text-slate-200">
+              <div class="text-[10px] font-mono text-cyan-400 font-bold uppercase tracking-wider flex items-center justify-between">
+                <span>TraceMail Forensic Copilot</span>
+                <span class="opacity-50">SESSION RESET</span>
+              </div>
+              <p class="text-xs leading-relaxed">
+                Chat history cleared. You can ask me any question about the current email headers, domain WHOIS records, routing hops, or incident remediation.
+              </p>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function askCopilotPrompt(promptText) {
+      const inp = document.getElementById('copilotInput');
+      if (inp) inp.value = promptText;
+      sendCopilotMessage();
+    }
+
+    function formatCopilotMarkdown(md) {
+      if (!md) return '';
+      let escaped = md
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      escaped = escaped.replace(/^### (.*$)/gim, '<h4 class="text-sm font-bold text-cyan-300 mt-2 mb-1 border-b border-white/10 pb-1">$1</h4>');
+      escaped = escaped.replace(/^#### (.*$)/gim, '<h5 class="text-xs font-bold text-amber-300 mt-2 mb-1">$1</h5>');
+      escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>');
+      escaped = escaped.replace(/\*(.*?)\*/g, '<em class="text-slate-300 italic">$1</em>');
+      escaped = escaped.replace(/`([^`]+)`/g, '<code class="bg-white/10 text-cyan-300 px-1.5 py-0.5 rounded font-mono text-[11px]">$1</code>');
+      escaped = escaped.replace(/^- (.*$)/gim, '<div class="flex items-start gap-1.5 my-1 ml-1"><span class="text-cyan-400 font-bold">›</span><span>$1</span></div>');
+      escaped = escaped.replace(/\n\n/g, '<div class="h-2"></div>');
+      escaped = escaped.replace(/\n/g, '<br/>');
+      return escaped;
+    }
+
+    async function sendCopilotMessage() {
+      const inputEl = document.getElementById('copilotInput');
+      const sendBtn = document.getElementById('copilotSendBtn');
+      const stream = document.getElementById('copilotChatStream');
+      if (!inputEl || !stream) return;
+
+      const userText = inputEl.value.trim();
+      if (!userText) return;
+
+      const userBubble = document.createElement('div');
+      userBubble.className = 'flex gap-3 items-start justify-end';
+      userBubble.innerHTML = `
+        <div class="glass bg-gradient-to-r from-cyan-950/40 to-blue-950/40 p-3.5 rounded-2xl border border-cyan-400/30 max-w-xl text-white text-xs font-mono">
+          <div class="text-[9px] text-cyan-400 font-bold uppercase tracking-wider mb-1 flex justify-between">
+            <span>YOU (ANALYST)</span>
+            <span class="opacity-50">${new Date().toLocaleTimeString()}</span>
+          </div>
+          <div>${userText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+        </div>
+        <div class="w-8 h-8 rounded-xl bg-violet-500/20 border border-violet-400/40 flex-shrink-0 flex items-center justify-center text-violet-300 text-xs">
+          <i class="fa-solid fa-user-shield"></i>
+        </div>
+      `;
+      stream.appendChild(userBubble);
+      inputEl.value = '';
+      stream.scrollTop = stream.scrollHeight;
+
+      const loadingId = 'copilotLoading_' + Date.now();
+      const loadingBubble = document.createElement('div');
+      loadingBubble.id = loadingId;
+      loadingBubble.className = 'flex gap-3 items-start';
+      loadingBubble.innerHTML = `
+        <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex-shrink-0 flex items-center justify-center text-cyan-300 text-xs">
+          <i class="fa-solid fa-robot animate-spin"></i>
+        </div>
+        <div class="glass bg-white/5 p-3.5 rounded-2xl border border-white/10 text-xs text-slate-300 flex items-center gap-2 font-mono">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+          <span>Dissecting forensic invariants & threat vectors...</span>
+        </div>
+      `;
+      stream.appendChild(loadingBubble);
+      stream.scrollTop = stream.scrollHeight;
+
+      if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.classList.add('opacity-50');
+      }
+
+      try {
+        const payload = {
+          message: userText,
+          report: currentForensicReport || null,
+          history: copilotChatHistory
+        };
+
+        const res = await fetch('/api/copilot/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        const loader = document.getElementById(loadingId);
+        if (loader) loader.remove();
+
+        const formattedHtml = formatCopilotMarkdown(data.reply || 'No response generated.');
+
+        copilotChatHistory.push({ role: 'user', content: userText });
+        copilotChatHistory.push({ role: 'assistant', content: data.reply });
+        if (copilotChatHistory.length > 10) copilotChatHistory = copilotChatHistory.slice(-10);
+
+        const botBubble = document.createElement('div');
+        botBubble.className = 'flex gap-3 items-start';
+        botBubble.innerHTML = `
+          <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex-shrink-0 flex items-center justify-center text-cyan-300 text-xs shadow-lg shadow-cyan-500/20">
+            <i class="fa-solid fa-brain-circuit"></i>
+          </div>
+          <div class="glass bg-white/5 p-4 rounded-2xl border border-white/10 max-w-2xl space-y-2 text-slate-200">
+            <div class="text-[10px] font-mono text-cyan-400 font-bold uppercase tracking-wider flex items-center justify-between border-b border-white/5 pb-1 mb-2">
+              <span class="flex items-center gap-1.5">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span>FORENSIC COPILOT • ${data.category || 'ANALYSIS'}</span>
+              </span>
+              <span class="text-[9px] opacity-40">${data.engine === 'ollama' ? 'LOCAL NEURAL OLLAMA' : 'TRACE-MAIL FORENSIC ENGINE'}</span>
+            </div>
+            <div class="text-xs leading-relaxed space-y-1">${formattedHtml}</div>
+          </div>
+        `;
+        stream.appendChild(botBubble);
+
+        if (data.suggested_prompts && Array.isArray(data.suggested_prompts)) {
+          const chipsContainer = document.getElementById('copilotChips');
+          if (chipsContainer && data.suggested_prompts.length > 0) {
+            chipsContainer.innerHTML = data.suggested_prompts.map(p => `
+              <button type="button" onclick="askCopilotPrompt('${p.replace(/'/g, "\\'")}')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
+                › ${p}
+              </button>
+            `).join('');
+          }
+        }
+
+        stream.scrollTop = stream.scrollHeight;
+      } catch (err) {
+        console.error('[TraceMail Copilot] Error:', err);
+        const loader = document.getElementById(loadingId);
+        if (loader) loader.remove();
+
+        const errBubble = document.createElement('div');
+        errBubble.className = 'flex gap-3 items-start';
+        errBubble.innerHTML = `
+          <div class="w-8 h-8 rounded-xl bg-red-500/20 border border-red-400/40 flex-shrink-0 flex items-center justify-center text-red-300 text-xs">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <div class="glass bg-red-950/20 p-3.5 rounded-2xl border border-red-500/30 text-xs text-red-300 max-w-xl font-mono">
+            Error querying Copilot: ${err.message}. Please check connection or retry.
+          </div>
+        `;
+        stream.appendChild(errBubble);
+        stream.scrollTop = stream.scrollHeight;
+      } finally {
+        if (sendBtn) {
+          sendBtn.disabled = false;
+          sendBtn.classList.remove('opacity-50');
+        }
+      }
+    }
+
+    // 3. Dropdown selection handler
+    function onSampleDropdownChange(val) {
+      if (val) {
+        loadScenarioIntoConsole(val, false);
+      }
+    }
+
+    // 4. Import selected sample button handler
+    async function importSelectedSample(autoScan = false) {
+      const sel = document.getElementById('sampleSelect');
+      const filename = sel ? sel.value : '';
+      if (!filename) {
+        alert('Please select a sample email from the dropdown first.');
+        return;
+      }
+      await loadScenarioIntoConsole(filename, autoScan);
+    }
+
+    // 5. Core Ingestion into Console Editor
+    async function loadScenarioIntoConsole(filename, autoScan = false) {
+      console.log('[TraceMail] Loading scenario:', filename, 'autoScan:', autoScan);
+      const notice = document.getElementById('importNotice');
+      const noticeText = document.getElementById('importNoticeText');
+      const fileLabel = document.getElementById('fileLabel');
+      const emailBody = document.getElementById('emailBody');
+      const fromInput = document.getElementById('fromInput');
+      const fileInput = document.getElementById('fileInput');
+
+      try {
+        const res = await fetch('/api/sample/' + encodeURIComponent(filename));
+        if (!res.ok) throw new Error('Could not fetch sample ' + filename + ' (' + res.status + ')');
+        const data = await res.json();
+
+        // Populate raw RFC 5322 text in console
+        if (emailBody) emailBody.value = data.content;
+        if (fileInput) fileInput.value = '';
+        if (fileLabel) fileLabel.innerText = 'Sample Active: ' + filename;
+
+        const match = data.content.match(/From:[ \t]*([^\r\n]+)/i);
+        if (match && fromInput) {
+          fromInput.value = match[1].trim();
+        }
+
+        // Sync dropdown
+        const sel = document.getElementById('sampleSelect');
+        if (sel && sel.value !== filename) {
+          sel.value = filename;
+        }
+
+        // Feedback banner
+        if (notice && noticeText) {
+          notice.classList.remove('hidden');
+          noticeText.innerText = '✓ Successfully loaded ' + filename + ' (' + data.content.length.toLocaleString() + ' bytes into console)';
+        }
+
+        // Flash console border
+        if (emailBody) {
+          emailBody.classList.add('border-cyan-400');
+          setTimeout(() => { emailBody.classList.remove('border-cyan-400'); }, 1200);
+        }
+
+        // Scroll to console editor
+        const scanEl = document.getElementById('scan');
+        if (scanEl && !autoScan) {
+          scanEl.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        if (autoScan) {
+          setTimeout(async () => {
+            await runForensicScan();
+          }, 300);
+        }
+      } catch (err) {
+        console.error('[TraceMail] Scenario load error:', err);
+        alert('Scenario Load Error: ' + err.message);
+      }
+    }
+
+    // 6. Hero demo pill click handler
+    async function loadScenario(filename) {
+      const scanEl = document.getElementById('scan');
+      if (scanEl) scanEl.scrollIntoView({ behavior: 'smooth' });
+      await loadScenarioIntoConsole(filename, true);
+    }
+
+    // 7. Sync Sample List from Server
+    async function initSampleDropdown() {
+      try {
+        const res = await fetch('/api/samples');
+        if (!res.ok) return;
+        const data = await res.json();
+        const badge = document.getElementById('sampleLoadBadge');
+        if (badge && data.samples) {
+          badge.innerText = data.samples.length + ' pre-loaded samples ready';
+        }
+      } catch (e) {
+        console.warn('[TraceMail] Could not sync sample list:', e);
+      }
+    }
+    initSampleDropdown();
+
+    // 8. Unified Forensic Deep Scan Executor
+    async function runForensicScan() {
+      console.log('[TraceMail] Running forensic deep scan...');
+      const formEl = document.getElementById('f');
+      const scanBtn = document.getElementById('scanBtn');
+      const out = document.getElementById('out');
+      const scoreEl = document.getElementById('score');
+      const statusMsg = document.getElementById('scanStatusMsg');
+      const emailBodyEl = document.getElementById('emailBody');
+      const fileInputEl = document.getElementById('fileInput');
+
+      const bodyText = emailBodyEl ? emailBodyEl.value.trim() : '';
+      const hasFile = fileInputEl && fileInputEl.files && fileInputEl.files.length > 0;
+
+      if (!bodyText && !hasFile) {
+        alert('Please select a sample email from the repository, drop a .eml file, or paste raw RFC 5322 headers into the console first.');
+        return;
+      }
+
+      if (scanBtn) {
+        scanBtn.disabled = true;
+        scanBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i><span>ANALYZING INVARIANTS...</span>';
+      }
+      if (scoreEl) scoreEl.textContent = '...';
+      if (statusMsg) statusMsg.textContent = 'PIPELINE EXECUTING...';
+      if (out) out.textContent = 'Pipeline executing: RFC Header Invariants → Safe Link Inspection → BEC Multi-Signal Model → GeoIP Telemetry...';
+
+      try {
+        const fd = formEl ? new FormData(formEl) : new FormData();
+        if (!formEl) {
+          fd.append('email_body', bodyText);
+        }
+
+        const r = await fetch('/scan', { method: 'POST', body: fd });
+        const j = await r.json();
+        if (!r.ok) {
+          throw new Error(j.detail || 'Forensic scan failed (' + r.status + ')');
+        }
+        currentForensicReport = j;
+
+        renderCompleteForensics(j);
+
+        const resEl = document.getElementById('results');
+        if (resEl) {
+          resEl.scrollIntoView({ behavior: 'smooth' });
+        }
+      } catch (err) {
+        console.error('[TraceMail] Scan error:', err);
+        if (out) out.textContent = 'Scan Error: ' + err.message;
+        if (statusMsg) statusMsg.textContent = 'ERROR: ' + err.message;
+        alert('Scan Error: ' + err.message);
+      } finally {
+        if (scanBtn) {
+          scanBtn.disabled = false;
+          scanBtn.innerHTML = '<i class="fa-solid fa-bolt"></i><span>RUN FORENSIC DEEP SCAN</span>';
+        }
+      }
+    }
+
+    // 9. Render Complete Forensic Results
+    function renderCompleteForensics(j) {
+      const score = typeof j.fraud_score === 'number' ? j.fraud_score : 0;
+      const statusMsg = document.getElementById('scanStatusMsg');
+      if (statusMsg) statusMsg.textContent = 'SCAN COMPLETE';
+
+      // Score Metric
+      const scoreEl = document.getElementById('score');
+      if (scoreEl) {
+        scoreEl.textContent = score;
+        scoreEl.style.color = score > 70 ? '#ef4444' : score > 40 ? '#f59e0b' : '#22c55e';
+      }
+      if (typeof gsap !== 'undefined' && gsap.to) {
+        try {
+          gsap.to('#score', { innerText: score, snap: { innerText: 1 }, duration: 1 });
+        } catch (e) {}
+      }
+      const barEl = document.getElementById('bar');
+      if (barEl) barEl.style.width = score + '%';
+
+      const labelEl = document.getElementById('label');
+      if (labelEl) {
+        const labelText = (j.label || 'ANALYZED').toUpperCase();
+        labelEl.innerText = labelText;
+        labelEl.style.color = score > 70 ? '#ef4444' : score > 40 ? '#f59e0b' : '#22c55e';
+      }
+
+      const becType = (j.ai && j.ai.bec_type) ? j.ai.bec_type : 'none';
+      const becEl = document.getElementById('bec');
+      if (becEl) becEl.innerText = becType.toUpperCase();
+      const confEl = document.getElementById('conf');
+      if (confEl) confEl.innerText = (j.confidence || 85) + '% confidence';
+
+      // Update Copilot Status Badge
+      const copilotBadge = document.getElementById('copilotReportBadge');
+      if (copilotBadge) {
+        copilotBadge.innerText = 'Active Scan: ' + (j.label || 'ANALYZED').toUpperCase() + ' (' + score + '/100)';
+        copilotBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-mono ' + (score > 70 ? 'bg-red-500/20 text-red-300 border border-red-500/40' : score > 40 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40');
+      }
+
+      // Auth Pills in Top Console
+      const h = j.headers || {};
+      applyPillStatus('spf', h.spf);
+      applyPillStatus('dkim', h.dkim);
+      applyPillStatus('dmarc', h.dmarc);
+      const ipLabelEl = document.getElementById('ipLabel');
+      if (ipLabelEl) ipLabelEl.textContent = h.origin_ip || 'INTERNAL RELAY';
+
+      // Reveal Results Section
+      const emptyState = document.getElementById('resEmptyState');
+      if (emptyState) emptyState.classList.add('hidden');
+      const repState = document.getElementById('resReport');
+      if (repState) repState.classList.remove('hidden');
+
+      // Theme logic
+      let themeBg = 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300';
+      let headline = 'AUTHENTICATED / INTEGRITY VERIFIED';
+      let summary = 'The message conforms with SPF, DKIM, and DMARC invariants. No obfuscated redirects or wire transfer anomalies detected.';
+      let iconHtml = '<i class="fa-solid fa-shield-check text-emerald-400"></i>';
+
+      if (score >= 70) {
+        themeBg = 'bg-red-950/40 border-red-500/40 text-red-300';
+        headline = 'CRITICAL THREAT / FRAUD DETECTED';
+        summary = 'Severe RFC spoofing detected alongside financial urgency phrases or malicious link redirection.';
+        iconHtml = '<i class="fa-solid fa-skull-crossbones text-red-400"></i>';
+      } else if (score >= 40) {
+        themeBg = 'bg-amber-950/40 border-amber-500/40 text-amber-300';
+        headline = 'SUSPICIOUS INVARIANT ANOMALIES';
+        summary = 'Authentication check mismatches or intermediate relay anomalies warrant analytical review.';
+        iconHtml = '<i class="fa-solid fa-triangle-exclamation text-amber-400"></i>';
+      }
+
+      const vBanner = document.getElementById('verdictBanner');
+      if (vBanner) vBanner.className = 'glass rounded-2xl p-6 border flex flex-wrap items-center justify-between gap-4 ' + themeBg;
+      const vBadge = document.getElementById('verdictBadge');
+      if (vBadge) {
+        vBadge.innerText = (j.risk_level || 'ANALYZED').toUpperCase();
+        vBadge.className = 'text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full border ' + themeBg;
+      }
+      const vHead = document.getElementById('verdictHeadline');
+      if (vHead) vHead.innerText = headline;
+      const vSum = document.getElementById('verdictSummary');
+      if (vSum) vSum.innerText = summary;
+      const vIcon = document.getElementById('verdictIconBox');
+      if (vIcon) {
+        vIcon.innerHTML = iconHtml;
+        vIcon.className = 'w-14 h-14 rounded-2xl flex items-center justify-center text-2xl bg-black/40 border border-white/10';
+      }
+      const cNum = document.getElementById('confidenceNum');
+      if (cNum) cNum.innerText = (j.confidence || 85) + '%';
+
+      // Reasons List
+      const rList = document.getElementById('reasonsList');
+      if (rList) {
+        rList.innerHTML = '';
+        const reasons = (j.ai && j.ai.reasons && j.ai.reasons.length) ? j.ai.reasons : (h.reasons || ['Normal forensic delivery profile']);
+        reasons.forEach(r => {
+          const li = document.createElement('li');
+          li.className = 'flex items-start gap-2 bg-black/30 p-2.5 rounded-xl border border-white/5';
+          li.innerHTML = '<i class="fa-solid fa-circle-exclamation text-amber-400 mt-0.5"></i> <span class="opacity-90">' + r + '</span>';
+          rList.appendChild(li);
+        });
+      }
+
+      // BEC Vector
+      const bBadge = document.getElementById('becVectorBadge');
+      if (bBadge) bBadge.innerText = becType.toUpperCase();
+      let becGuide = 'Normal communication. No unauthorized wire diversion or credential phishing hooks.';
+      if (becType.includes('diversion') || becType.includes('wire')) {
+        becGuide = 'CRITICAL: Out-of-band verification required. Email attempts unauthorized bank account or wire transfer modification with mismatched Reply-To domain. Call the vendor at a verified telephone number before updating banking records.';
+      } else if (becType.includes('credential')) {
+        becGuide = 'CRITICAL: Phishing lures discovered aiming to harvest enterprise credentials. Block link destination at perimeter gateway.';
+      } else if (becType.includes('impersonation')) {
+        becGuide = 'WARNING: Executive or VIP impersonation attempted via forged display headers.';
+      }
+      const bGuide = document.getElementById('becGuidance');
+      if (bGuide) bGuide.innerText = becGuide;
+
+      // Evidence Hash & Timestamp
+      const hVal = document.getElementById('hashVal');
+      if (hVal) hVal.innerText = j.evidence_hash || 'SHA256_UNKNOWN';
+      const tVal = document.getElementById('timestampVal');
+      if (tVal) tVal.innerText = j.timestamp ? new Date(j.timestamp).toUTCString() : '';
+
+      // TAB 2: RFC Headers Fill
+      setAuthBox('spfBox', 'spfStatus', h.spf, 'SPF');
+      setAuthBox('dkimBox', 'dkimStatus', h.dkim, 'DKIM');
+      setAuthBox('dmarcBox', 'dmarcStatus', h.dmarc, 'DMARC');
+
+      const hdrF = document.getElementById('hdrFrom'); if (hdrF) hdrF.innerText = h.from || 'Not parsed';
+      const hdrRP = document.getElementById('hdrReturnPath');
+      if (hdrRP) {
+        hdrRP.innerText = h.return_path || 'None (Spoofed)';
+        if (h.return_path && h.from && !h.return_path.includes((h.from.split('@')[1] || ' '))) {
+          hdrRP.innerHTML += ' <span class="text-red-400 font-bold ml-2">[MISMATCH FLAGGED]</span>';
+        }
+      }
+      const hdrRT = document.getElementById('hdrReplyTo'); if (hdrRT) hdrRT.innerText = h.reply_to || 'Matching From';
+      const hdrIP = document.getElementById('hdrOriginIp'); if (hdrIP) hdrIP.innerText = h.origin_ip || 'Private / Loopback Relay';
+      const hopsCount = typeof h.hops === 'number' ? h.hops : (Array.isArray(h.hops) ? h.hops.length : (h.total_hops || 0));
+      const hdrHp = document.getElementById('hdrHops'); if (hdrHp) hdrHp.innerText = hopsCount + ' intermediate hops recorded';
+      const hdrSp = document.getElementById('hdrSpoof'); if (hdrSp) hdrSp.innerText = (h.spoof_score || 0) + ' / 100';
+
+      // TAB 3: Links Fill
+      const links = j.links || [];
+      const lList = document.getElementById('linksList');
+      const lSum = document.getElementById('linksSummary');
+      if (lSum) lSum.innerText = links.length + ' URLs Discovered';
+
+      if (lList) {
+        lList.innerHTML = '';
+        if (links.length === 0) {
+          lList.innerHTML = '<div class="p-6 bg-black/20 rounded-xl text-center text-xs opacity-50 flex items-center justify-center gap-2"><i class="fa-solid fa-shield-check text-emerald-400"></i> No external hyperlinks discovered in message body.</div>';
+        } else {
+          links.forEach(l => {
+            const isSusp = l.suspicious;
+            const card = document.createElement('div');
+            card.className = 'p-3.5 rounded-xl border ' + (isSusp ? 'bg-red-950/20 border-red-500/30' : 'bg-black/30 border-white/5') + ' font-mono text-xs space-y-1';
+            card.innerHTML = '<div class="flex justify-between items-center gap-2"><span class="text-cyan-300 break-all">' + l.original + '</span><span class="px-2.5 py-0.5 rounded-full text-[9px] font-bold ' + (isSusp ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40') + '">' + (isSusp ? 'SUSPICIOUS' : 'CLEAN') + '</span></div>' +
+              (l.final && l.final !== l.original ? '<div class="text-[11px] opacity-70">↳ Resolved: <span class="text-amber-300 break-all">' + l.final + '</span> (' + l.redirects + ' redirects)</div>' : '') +
+              (l.punycode ? '<div class="text-red-400 text-[10px]"><i class="fa-solid fa-triangle-exclamation"></i> Punycode Obfuscation (xn--) Detected</div>' : '');
+            lList.appendChild(card);
+          });
+        }
+      }
+
+      // TAB 4: Geo & WHOIS Fill
+      const tr = j.trace || {};
+      const geo = tr.geo || {};
+      const gIp = document.getElementById('geoIpVal'); if (gIp) gIp.innerText = geo.ip || h.origin_ip || 'N/A';
+      const gLoc = document.getElementById('geoLocVal'); if (gLoc) gLoc.innerText = (geo.city || 'Unknown') + ', ' + (geo.region || '') + ', ' + (geo.country || 'Unknown');
+      const gCoord = document.getElementById('geoCoordsVal'); if (gCoord) gCoord.innerText = geo.loc || (geo.lat ? (geo.lat + ', ' + geo.lon) : (geo.latitude ? (geo.latitude + ', ' + geo.longitude) : 'N/A'));
+      const gOrg = document.getElementById('geoOrgVal'); if (gOrg) gOrg.innerText = geo.org || geo.organization || 'N/A';
+
+      const whoisData = geo.whois || {};
+      const wReg = document.getElementById('whoisReg'); if (wReg) wReg.innerText = whoisData.registrar || 'N/A';
+      const wDate = document.getElementById('whoisDate'); if (wDate) wDate.innerText = whoisData.creation || 'N/A';
+      
+      const hostFlags = tr.hosting_flags || [];
+      const hFlag = document.getElementById('hostingFlag');
+      if (hFlag) {
+        hFlag.innerText = hostFlags.length ? hostFlags.join(', ') : 'Standard ISP / Non-Datacenter';
+        hFlag.className = hostFlags.length ? 'text-amber-400 font-bold' : 'text-white';
+      }
+
+      const mxBox = document.getElementById('mxRecords');
+      if (mxBox) {
+        const mxList = Array.isArray(tr.mx) ? tr.mx : (typeof tr.mx === 'string' && tr.mx ? [tr.mx] : []);
+        if (mxList.length) {
+          mxBox.innerHTML = mxList.map(m => '<div class="text-cyan-300">↳ ' + m + '</div>').join('');
+        } else {
+          mxBox.innerText = 'No MX exchange records found for sender domain.';
+        }
+      }
+
+      // 3D Globe Threat Radar Projection
+      if (typeof globe !== 'undefined' && globe) {
+        let lat = null, lng = null;
+        if (geo.loc) {
+          const parts = geo.loc.split(',').map(Number);
+          lat = parts[0]; lng = parts[1];
+        } else if (geo.lat !== undefined && geo.lon !== undefined && geo.lat !== null && geo.lon !== null) {
+          lat = Number(geo.lat); lng = Number(geo.lon);
+        } else if (geo.latitude !== undefined && geo.longitude !== undefined && geo.latitude !== null && geo.longitude !== null) {
+          lat = Number(geo.latitude); lng = Number(geo.longitude);
+        }
+
+        const hudCoords = document.getElementById('hudCoords');
+
+        if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+          lastThreatOrigin = {
+            lat,
+            lng,
+            city: geo.city || 'Unknown City',
+            country: geo.country || 'Unknown Country',
+            ip: geo.ip || h.origin_ip || 'Target IP',
+            org: geo.org || geo.organization || 'Registered ISP / Cloud'
+          };
+
+          if (hudCoords) {
+            hudCoords.innerText = 'Lock: ' + lat.toFixed(2) + '°, ' + lng.toFixed(2) + '° (' + (geo.country || 'EXT') + ')';
+            hudCoords.className = 'text-cyan-400 font-bold';
+          }
+
+          const targetLabel = '<div style="background: rgba(10,15,29,0.95); border: 1px solid #ef4444; padding: 10px 14px; border-radius: 10px; font-family: monospace; font-size: 11px; color: #fff; box-shadow: 0 8px 25px rgba(0,0,0,0.8); pointer-events: none;">' +
+            '<div style="color: #ef4444; font-weight: bold; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">' +
+              '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ef4444;"></span>' +
+              'ORIGIN THREAT VECTOR' +
+            '</div>' +
+            '<div style="color: #06b6d4; margin-bottom: 2px;">IP: <span style="color:#fff;">' + lastThreatOrigin.ip + '</span></div>' +
+            '<div style="margin-bottom: 2px;">GEO: <span style="color:#cbd5e1;">' + lastThreatOrigin.city + ', ' + lastThreatOrigin.country + '</span></div>' +
+            '<div style="margin-bottom: 2px;">ISP: <span style="color:#94a3b8;">' + lastThreatOrigin.org + '</span></div>' +
+            '<div style="color: #f59e0b; margin-top: 4px; font-size: 10px;">LAT/LON: ' + lat.toFixed(4) + ', ' + lng.toFixed(4) + '</div>' +
+          '</div>';
+
+          const localLabel = '<div style="background: rgba(10,15,29,0.95); border: 1px solid #10b981; padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 11px; color: #fff; box-shadow: 0 6px 20px rgba(0,0,0,0.8); pointer-events: none;">' +
+            '<div style="color: #10b981; font-weight: bold; margin-bottom: 4px;">🛡️ DEFENDER MAILBOX (TARGET)</div>' +
+            '<div>Coordinates: 20.5937° N, 78.9629° E</div>' +
+            '<div style="color: #94a3b8; font-size: 10px;">Secure Inbox Gateway</div>' +
+          '</div>';
+
+          try {
+            globe.arcsData([{
+              startLat: lat,
+              startLng: lng,
+              endLat: 20.5937,
+              endLng: 78.9629,
+              color: ['#ef4444', '#06b6d4']
+            }]);
+
+            globe.pointsData([
+              { lat: lat, lng: lng, size: 0.8, color: '#ef4444', label: targetLabel },
+              { lat: 20.5937, lng: 78.9629, size: 0.5, color: '#10b981', label: localLabel }
+            ]);
+
+            if (typeof globe.ringsData === 'function') {
+              globe.ringsData([{ lat: lat, lng: lng }]);
+            }
+
+            if (typeof globe.controls === 'function') {
+              globe.controls().autoRotate = false;
+              globeAutoRotate = false;
+              const btn = document.getElementById('orbitBtn');
+              if (btn) {
+                btn.innerText = '⟳ Orbit: OFF';
+                btn.className = 'px-2.5 py-1 bg-black/75 hover:bg-black text-slate-400 border border-white/20 rounded-lg text-[10px] font-mono transition backdrop-blur-md shadow-md cursor-pointer';
+              }
+            }
+
+            globe.pointOfView({ lat: lat, lng: lng, altitude: 1.6 }, 1200);
+          } catch (globeErr) {
+            console.warn('[TraceMail] Globe update warning:', globeErr);
+          }
+        } else {
+          lastThreatOrigin = null;
+          if (hudCoords) {
+            hudCoords.innerText = 'Internal / Non-Routable IP';
+            hudCoords.className = 'opacity-40';
+          }
+          try {
+            globe.arcsData([]);
+            globe.pointsData([]);
+            if (typeof globe.ringsData === 'function') globe.ringsData([]);
+          } catch (e) {}
+        }
+      }
+
+      // TAB 5: IOC Graph Fill
+      const ioc = j.ioc_graph || {};
+      const nodes = ioc.nodes || [];
+      const edges = ioc.edges || [];
+      const iocCountEl = document.getElementById('iocCountBadge');
+      if (iocCountEl) iocCountEl.innerText = nodes.length + ' Nodes • ' + edges.length + ' Relations';
+      const iocBox = document.getElementById('iocGraphContainer');
+      if (iocBox) {
+        iocBox.innerHTML = '';
+        if (nodes.length === 0) {
+          iocBox.innerHTML = '<p class="text-xs opacity-40 col-span-full py-8 text-center">No IOC entities isolated.</p>';
+        } else {
+          nodes.forEach(n => {
+            const typeIcons = {
+              'EMAIL': 'fa-envelope text-cyan-400',
+              'DOMAIN': 'fa-globe text-violet-400',
+              'IP': 'fa-server text-emerald-400',
+              'URL_DOMAIN': 'fa-link text-amber-400',
+              'ATTACHMENT': 'fa-paperclip text-rose-400'
+            };
+            const icon = typeIcons[n.type] || 'fa-circle-nodes text-slate-400';
+            const card = document.createElement('div');
+            card.className = 'glass glass-card p-4 rounded-xl border border-white/10 font-mono text-xs space-y-1.5';
+            card.innerHTML = '<div class="flex items-center justify-between"><span class="text-[10px] tracking-wider opacity-50 uppercase flex items-center gap-1.5"><i class="fa-solid ' + icon + '"></i> ' + n.type + '</span><span class="text-[9px] bg-white/10 px-2 py-0.5 rounded-full">' + ((n.id || '').split(':')[0]) + '</span></div><div class="text-white font-bold truncate">' + (n.label || n.id) + '</div>';
+            iocBox.appendChild(card);
+          });
+        }
+      }
+
+      // TAB 6: Raw Evidence JSON
+      const outEl = document.getElementById('out');
+      if (outEl) outEl.textContent = JSON.stringify(j, null, 2);
+    }
+
+    function applyPillStatus(id, isPass) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = isPass ? 'PASS' : 'FAIL';
+      el.className = 'px-3 py-1 rounded-full font-bold ' + (isPass ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40');
+    }
+
+    function setAuthBox(boxId, statusId, isPass, label) {
+      const b = document.getElementById(boxId);
+      const s = document.getElementById(statusId);
+      if (!b || !s) return;
+      if (isPass) {
+        s.innerText = label + ': PASS';
+        s.className = 'text-xs font-bold font-mono px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+        b.className = 'glass rounded-2xl p-4 border border-emerald-500/30';
+      } else {
+        s.innerText = label + ': FAIL / MISSING';
+        s.className = 'text-xs font-bold font-mono px-3 py-1 rounded-full bg-red-500/20 text-red-300 border border-red-500/40';
+        b.className = 'glass rounded-2xl p-4 border border-red-500/30';
+      }
+    }
+
+    function copyEvidenceHash() {
+      if (currentForensicReport && currentForensicReport.evidence_hash) {
+        navigator.clipboard.writeText(currentForensicReport.evidence_hash);
+        alert('Evidence SHA-256 Hash copied to clipboard!');
+      }
+    }
+
+    function copyRawEvidence() {
+      if (currentForensicReport) {
+        navigator.clipboard.writeText(JSON.stringify(currentForensicReport, null, 2));
+        alert('Raw forensic JSON evidence copied to clipboard!');
+      }
+    }
+
+    // =========================================================================
+    // OPTIONAL VISUAL ENHANCEMENTS (SAFE & PROTECTED)
+    // =========================================================================
+    // 1. Lenis Smooth Scroll
+    try {
+      if (typeof Lenis !== 'undefined') {
+        const lenis = new Lenis({ duration: 1.2 });
+        function raf(t) { lenis.raf(t); requestAnimationFrame(raf); }
+        requestAnimationFrame(raf);
+      }
+    } catch (e) {
+      console.warn('Lenis disabled:', e);
+    }
+
+    // 2. GSAP Animations
+    try {
+      if (typeof gsap !== 'undefined') {
+        if (typeof ScrollTrigger !== 'undefined') gsap.registerPlugin(ScrollTrigger);
+        gsap.to('.reveal', { clipPath: 'inset(0 0 0% 0)', duration: 1.2, stagger: 0.15, ease: 'power4.out' });
+        gsap.from('.glass', { y: 40, opacity: 0, duration: 1, stagger: 0.08, ease: 'power3.out', scrollTrigger: { trigger: '#scan', start: 'top 85%' } });
+      }
+    } catch (e) {
+      console.warn('GSAP animation disabled:', e);
+    }
+
+    // 3. Magnetic Hover
+    document.querySelectorAll('.magnet').forEach(b => {
+      b.addEventListener('mousemove', e => {
+        const r = b.getBoundingClientRect();
+        b.style.transform = 'translate(' + ((e.clientX - r.left - r.width / 2) * 0.25) + 'px, ' + ((e.clientY - r.top - r.height / 2) * 0.35) + 'px)';
+      });
+      b.addEventListener('mouseleave', () => b.style.transform = 'translate(0,0)');
+    });
+
+    // 4. Fluid Canvas Background
+    try {
+      const c = document.getElementById('fluid');
+      if (c && c.getContext) {
+        const x = c.getContext('2d');
+        if (x) {
+          let w, h, t = 0, mx = 0, my = 0;
+          function rs() { w = c.width = innerWidth; h = c.height = innerHeight; }
+          rs();
+          window.addEventListener('resize', rs);
+          window.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+
+          function draw() {
+            t += 0.006;
+            x.clearRect(0, 0, w, h);
+            const g = x.createRadialGradient(mx, my, 0, mx, my, w);
+            g.addColorStop(0, 'rgba(6,182,212,0.15)');
+            g.addColorStop(0.35, 'rgba(139,92,246,0.08)');
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            x.fillStyle = g;
+            x.fillRect(0, 0, w, h);
+
+            for (let i = 0; i < 3; i++) {
+              x.beginPath();
+              for (let a = 0; a < Math.PI * 2; a += 0.02) {
+                const r = 280 + Math.sin(a * 3 + t + i) * 90 + Math.cos(a * 2 - t) * 60;
+                const px = w * 0.55 + Math.cos(a) * r, py = h * 0.45 + Math.sin(a) * r;
+                x.lineTo(px, py);
+              }
+              x.strokeStyle = 'rgba(6,182,212,' + (0.08 - i * 0.02) + ')';
+              x.lineWidth = 1.5;
+              x.stroke();
+            }
+            requestAnimationFrame(draw);
+          }
+          draw();
+        }
+      }
+    } catch (e) {
+      console.warn('Fluid canvas skipped:', e);
+    }
+
+    // 5. 3D Globe Telemetry Radar Setup
+    try {
+      const globeElem = document.getElementById('globe');
+      if (typeof Globe === 'function' && globeElem) {
+        globe = Globe()(globeElem)
+          .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
+          .backgroundColor('#000000')
+          .width(globeElem.clientWidth || 400)
+          .height(320)
+          .showAtmosphere(true)
+          .atmosphereColor('#06b6d4')
+          .atmosphereAltitude(0.18)
+          .arcColor('color')
+          .arcDashLength(0.4)
+          .arcDashGap(0.2)
+          .arcDashInitialGap(() => Math.random())
+          .arcDashAnimateTime(1800)
+          .arcAltitude(0.25)
+          .arcStroke(1.5)
+          .pointColor('color')
+          .pointAltitude(0.04)
+          .pointRadius('size')
+          .pointLabel('label');
+
+        if (typeof globe.ringColor === 'function') {
+          globe
+            .ringColor(() => (t) => 'rgba(239,68,68,' + Math.max(0, 1 - t) + ')')
+            .ringMaxRadius(8)
+            .ringPropagationSpeed(2.5)
+            .ringRepeatPeriod(900);
+        }
+
+        globe.pointOfView({ lat: 20.5937, lng: 78.9629, altitude: 2.2 });
+
+        if (typeof globe.controls === 'function') {
+          globe.controls().autoRotate = true;
+          globe.controls().autoRotateSpeed = 0.5;
+        }
+
+        window.addEventListener('resize', () => {
+          if (globeElem && globe && typeof globe.width === 'function') {
+            globe.width(globeElem.clientWidth);
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Globe.gl initialization deferred:', e);
+    }
+
+    // 6. File Input and Drag-and-Drop Handlers
+    const fileInputEl = document.getElementById('fileInput');
+    if (fileInputEl) {
+      fileInputEl.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          document.getElementById('fileLabel').innerText = 'Attached: ' + e.target.files[0].name;
+        }
+      });
+    }
+
+    const dropZone = document.getElementById('dropZone');
+    if (dropZone) {
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropZone.classList.add('border-cyan-400', 'bg-white/10');
+        }, false);
+      });
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropZone.classList.remove('border-cyan-400', 'bg-white/10');
+        }, false);
+      });
+      dropZone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        if (dt && dt.files && dt.files.length > 0) {
+          const file = dt.files[0];
+          const input = document.getElementById('fileInput');
+          if (input) input.files = dt.files;
+          const lb = document.getElementById('fileLabel');
+          if (lb) lb.innerText = 'Attached: ' + file.name;
+        }
+      });
+    }
+
+    // 7. Copilot Input Keyboard Listener
+    const copilotInputEl = document.getElementById('copilotInput');
+    if (copilotInputEl) {
+      copilotInputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendCopilotMessage();
+        }
+      });
+    }
+  </script>
+</body>
+</html>

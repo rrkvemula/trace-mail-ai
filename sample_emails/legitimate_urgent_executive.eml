@@ -1,0 +1,32 @@
+From: "Dr. Marcus Vance - Dean of Academic Affairs" <m.vance@central-tech.edu>
+To: faculty-all@central-tech.edu
+Subject: URGENT ACTION REQUIRED: Annual Faculty Accreditation Dossier Submission Deadline Today
+Date: Thu, 10 Sep 2026 09:15:00 +0530
+Message-ID: <accreditation-20260910@central-tech.edu>
+Return-Path: <bounces@central-tech.edu>
+Reply-To: m.vance@central-tech.edu
+Authentication-Results: mx.central-tech.edu;
+ spf=pass smtp.mailfrom=bounces@central-tech.edu;
+ dkim=pass header.d=central-tech.edu;
+ dmarc=pass (p=reject) header.from=central-tech.edu
+Received-SPF: pass (mx.central-tech.edu: domain of central-tech.edu designates 198.51.100.45 as permitted sender)
+Received: from mail.central-tech.edu (mail.central-tech.edu [198.51.100.45])
+	by mx.central-tech.edu (Postfix) with ESMTPS id 3A8C7F10
+	for <faculty-all@central-tech.edu>; Thu, 10 Sep 2026 03:45:00 +0000 (UTC)
+Content-Type: text/plain; charset="utf-8"
+
+Dear Faculty Colleagues,
+
+This is an urgent reminder regarding the accreditation documentation.
+Action is required immediately by 5:00 PM today to finalize your departmental dossiers.
+
+Please review your department submission portal:
+https://portal.central-tech.edu/faculty/dossier
+
+Failure to complete this ahead of today's deadline will delay our institutional filing.
+If you experience any portal synchronization errors, please contact the academic dean's office.
+
+Sincerely,
+Dr. Marcus Vance
+Dean of Academic Affairs
+Central Institute of Technology

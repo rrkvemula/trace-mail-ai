@@ -1,0 +1,30 @@
+From: "Apex Lab Supplies - Accounts" <billing@apex-labs.example>
+To: procurement@example.edu
+Subject: Updated remittance details for invoice AL-20914
+Date: Thu, 10 Sep 2026 11:20:00 +0530
+Message-ID: <al-20914.20260910@apex-labs.example>
+Return-Path: <bounces@apex-labs.example>
+Reply-To: payments-update@apex-labs-payments.example
+Authentication-Results: mx.example.edu;
+ spf=pass smtp.mailfrom=bounces@apex-labs.example;
+ dkim=pass header.d=apex-labs.example;
+ dmarc=pass header.from=apex-labs.example
+Received-SPF: pass (mx.example.edu: domain of apex-labs.example designates 192.0.2.88 as permitted sender)
+Received: from mail.apex-labs.example (mail.apex-labs.example [192.0.2.88])
+	by mx.example.edu (Postfix) with ESMTPS id 7F6E5D4C
+	for <procurement@example.edu>; Thu, 10 Sep 2026 05:50:00 +0000 (UTC)
+X-TraceMail-Demo: synthetic-bec-email
+Content-Type: text/plain; charset="utf-8"
+
+Hello Procurement Team,
+
+Please treat this as confidential. Our banking details have changed ahead of
+today's invoice payment. Please update the vendor record and make the wire
+transfer immediately to avoid a delivery delay.
+
+Do not call the usual accounts contact while the finance team is in an audit.
+Please reply to this message once the transfer is complete.
+
+Regards,
+Accounts Receivable
+Apex Lab Supplies

@@ -52,6 +52,10 @@ class ForensicPipeline:
         origin_ip = parsed_data.get("origin_ip")
         origin_geo = GeoIPResolver.resolve(origin_ip)
 
+        # 7. Safe Static Link Analysis (Zero SSRF)
+        from .url_scanner import URLScanner
+        scanned_links = URLScanner.scan_all(parsed_data.get("body", {}).get("links", []))
+
         # Build Consolidated Forensic Payload
         return {
             "forensic_hash": parsed_data.get("forensic_hash"),
@@ -68,6 +72,7 @@ class ForensicPipeline:
             "body_summary": {
                 "plain_text_snippet": parsed_data.get("body", {}).get("plain_text", "")[:350],
                 "links": parsed_data.get("body", {}).get("links", []),
+                "scanned_links": scanned_links,
                 "total_links": parsed_data.get("body", {}).get("total_links", 0),
                 "attachments": parsed_data.get("attachments", [])
             }

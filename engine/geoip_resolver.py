@@ -64,16 +64,24 @@ class GeoIPResolver:
                 data = json.loads(resp.read().decode('utf-8'))
                 if data.get("success") is True:
                     connection = data.get("connection") or {}
+                    lat = data.get("latitude")
+                    lon = data.get("longitude")
+                    loc = f"{lat},{lon}" if lat is not None and lon is not None else None
+                    org = connection.get("org", "Unknown Org")
                     return {
                         "ip": ip,
                         "country": data.get("country", "Unknown"),
                         "country_code": data.get("country_code", "XX"),
                         "region": data.get("region", "Unknown"),
                         "city": data.get("city", "Unknown"),
-                        "latitude": data.get("latitude"),
-                        "longitude": data.get("longitude"),
+                        "latitude": lat,
+                        "longitude": lon,
+                        "lat": lat,
+                        "lon": lon,
+                        "loc": loc,
+                        "org": org,
                         "isp": connection.get("isp", "Unknown ISP"),
-                        "organization": connection.get("org", "Unknown Org"),
+                        "organization": org,
                         "asn": f"AS{connection.get('asn')}" if connection.get("asn") else "Unknown ASN",
                         "is_private": False,
                         "status": "RESOLVED",
@@ -95,6 +103,10 @@ class GeoIPResolver:
             "city": "Unavailable",
             "latitude": None,
             "longitude": None,
+            "lat": None,
+            "lon": None,
+            "loc": None,
+            "org": "Unavailable",
             "isp": "Unavailable",
             "organization": "Unavailable",
             "asn": "Unavailable",
@@ -118,6 +130,10 @@ class GeoIPResolver:
             "city": note,
             "latitude": None,
             "longitude": None,
+            "lat": None,
+            "lon": None,
+            "loc": None,
+            "org": "Internal Network",
             "isp": "Local Relay",
             "organization": "Internal Network",
             "asn": "Private",
