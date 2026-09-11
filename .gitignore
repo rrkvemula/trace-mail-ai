@@ -13,3 +13,8 @@ venv/
 .venv/
 *.zip
 data/*.jsonl
+
+# Exclude large raw unquantized checkpoints (>100MB GitHub limit)
+*.safetensors
+engine/models/threat_transformer.onnx
+engine/models/*.onnx.data

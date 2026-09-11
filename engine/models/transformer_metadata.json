@@ -1,0 +1,16 @@
+{
+  "base_model": "distilbert-base-uncased",
+  "test_accuracy": 1.0,
+  "test_macro_f1": 1.0,
+  "training_duration_seconds": 866.9,
+  "epochs": 3,
+  "device": "cpu",
+  "gpu_name": "CPU (16 Threads)",
+  "classes": [
+    "LEGITIMATE",
+    "PHISHING",
+    "BEC_FRAUD"
+  ],
+  "num_train_samples": 2329,
+  "num_test_samples": 457
+}

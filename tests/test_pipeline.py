@@ -289,6 +289,15 @@ class PipelineTests(unittest.TestCase):
         legit_text = "Smart India Hackathon campus orientation schedule has been updated. Please review the attached agenda."
         legit_res = CLASSIFIER.predict(legit_text)
         self.assertLess(legit_res["phishing_probability"], 0.35)
+
+    def test_onnx_transformer_active_inference(self):
+        from engine.ml_classifier import CLASSIFIER
+        res = CLASSIFIER.predict("Urgent: wire transfer of $10,000 required immediately.")
+        self.assertIn("ONNX", res.get("algorithm", ""))
+        self.assertEqual(res.get("validation_status"), "TRAINED_PRODUCTION_DEEP_LEARNING")
+        self.assertIn("bec_fraud", res.get("class_probabilities", {}))
+        self.assertGreater(res["class_probabilities"]["bec_fraud"], 0.70)
+
     def test_html_only_body_fallback(self):
         html_email = (
             b"From: billing@vendor.com\r\n"

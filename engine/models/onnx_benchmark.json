@@ -1,0 +1,65 @@
+{
+  "onnx_model": "threat_transformer_int8.onnx",
+  "fp32_size_mb": 255.53,
+  "int8_size_mb": 64.24,
+  "compression_ratio_percent": 74.86,
+  "latency_metrics_ms": {
+    "mean": 14.81,
+    "p50": 14.32,
+    "p95": 18.27,
+    "min": 13.1,
+    "max": 18.78
+  },
+  "sample_evaluations": [
+    {
+      "query": "Urgent: Please wire $50,000 to our updated vendor bank accou...",
+      "prediction": "BEC_FRAUD",
+      "confidence": 0.9937,
+      "probs": {
+        "legitimate": 0.0034,
+        "phishing": 0.003,
+        "bec_fraud": 0.9937
+      }
+    },
+    {
+      "query": "Security Alert: Your Microsoft Office 365 password expired. ...",
+      "prediction": "PHISHING",
+      "confidence": 0.9918,
+      "probs": {
+        "legitimate": 0.0048,
+        "phishing": 0.9918,
+        "bec_fraud": 0.0033
+      }
+    },
+    {
+      "query": "Department meeting scheduled for Monday morning. Please revi...",
+      "prediction": "LEGITIMATE",
+      "confidence": 0.9932,
+      "probs": {
+        "legitimate": 0.9932,
+        "phishing": 0.003,
+        "bec_fraud": 0.0038
+      }
+    },
+    {
+      "query": "Smart India Hackathon campus screening timetable has been pu...",
+      "prediction": "LEGITIMATE",
+      "confidence": 0.9943,
+      "probs": {
+        "legitimate": 0.9943,
+        "phishing": 0.003,
+        "bec_fraud": 0.0028
+      }
+    },
+    {
+      "query": "Wire transfer confidential request do not call me scratch ap...",
+      "prediction": "BEC_FRAUD",
+      "confidence": 0.6373,
+      "probs": {
+        "legitimate": 0.3324,
+        "phishing": 0.0303,
+        "bec_fraud": 0.6373
+      }
+    }
+  ]
+}
