@@ -3,6 +3,8 @@ Forensic AI Copilot & Neural Threat Triage Engine.
 Provides conversational explanation of email investigation reports,
 RFC 5322 header invariants, domain WHOIS telemetry, MTA hop latency,
 and out-of-band verification recommendations.
+Augmented with Forensic RAG: MITRE ATT&CK/D3FEND, CISA/FBI Playbooks,
+RFC standards, and past incident ledger memory.
 Supports local Ollama LLMs with an instant, deterministic forensic reasoning fallback.
 """
 
@@ -11,6 +13,9 @@ import re
 import urllib.request
 import urllib.error
 from typing import Dict, Any, List, Optional
+
+from .rag_engine import ForensicRAG
+
 
 class ForensicCopilot:
     """Conversational AI Analyst for TraceMail Forensic Intelligence."""
@@ -29,7 +34,7 @@ class ForensicCopilot:
         """
         Processes user query against current forensic report context.
         Prioritizes ARGUS-X air-gapped native reasoning engine.
-        Falls back to local Ollama or deterministic expert rules.
+        Falls back to local Ollama or deterministic expert rules augmented with RAG.
         """
         user_msg = (user_message or "").strip()
         if not user_msg:
@@ -40,46 +45,61 @@ class ForensicCopilot:
                     "I evaluate RFC 5322 invariants, authenticate cryptographic alignment, and generate automated defensive rules.\n\n"
                     "*You can ask:*\n"
                     "- *'Why is this email flagged as high risk?'*\n"
-                    "- *'Generate a Snort 3 rule to block this threat.'*\n"
-                    "- *'What is the recommended SOC remediation playbook?'*\n"
+                    "- *'What does CISA & FBI IC3 playbook recommend for wire fraud?'*\n"
+                    "- *'Generate a Snort 3 or Sigma rule to block this threat.'*\n"
+                    "- *'Has this sender IP or domain appeared in prior incidents?'*\n"
                     "- *'Explain the SPF and DMARC alignment status.'*"
                 ),
                 "category": "GREETING",
                 "engine": "argus_x_native",
+                "citations": [],
+                "rag_augmented": False,
                 "suggested_prompts": [
                     "Explain Overall Threat Verdict",
-                    "Generate Snort 3 Detection Rule",
-                    "Show Incident Remediation Playbook",
-                    "Perimeter Firewall IPTables Drop",
+                    "Show CISA & FBI BEC Playbook",
+                    "Map to MITRE ATT&CK & D3FEND",
+                    "Generate Snort 3 & Sigma Rules",
                     "Audit RFC Header Invariants"
                 ]
             }
+
+        # 0. Retrieve grounded Cyber Threat Intelligence & Incident History via RAG
+        rag_data = ForensicRAG.build_augmented_context(user_msg, report)
 
         # 1. Primary: ARGUS-X Native Forensic Intelligence Engine
         try:
             from argus_x.analyst import ArgusAnalyst
             argus_res = ArgusAnalyst.query(user_msg, report, history)
             if argus_res and argus_res.get("reply"):
+                if rag_data and rag_data.get("augmented_context"):
+                    argus_res["reply"] += "\n\n" + rag_data["augmented_context"]
+                if rag_data.get("citations"):
+                    argus_res["citations"] = rag_data["citations"]
+                    argus_res["rag_augmented"] = True
                 return argus_res
         except Exception:
             pass
 
         # 2. Secondary: Local Ollama Neural Inference (if available)
-        ollama_res = cls._try_ollama(user_msg, report, history, preferred_model)
+        ollama_res = cls._try_ollama(user_msg, report, history, preferred_model, rag_data)
         if ollama_res:
             return {
                 "reply": ollama_res,
                 "category": "NEURAL_INFERENCE",
                 "engine": "ollama",
+                "citations": rag_data.get("citations", []),
+                "rag_augmented": bool(rag_data.get("citations")),
                 "suggested_prompts": cls._get_contextual_prompts(user_msg, report)
             }
 
-        # 3. Deterministic Forensic Reasoning Engine Fallback
-        reasoned_reply, category = cls._reason_expert(user_msg, report, history)
+        # 3. Deterministic Forensic Reasoning Engine Fallback with RAG Grounding
+        reasoned_reply, category = cls._reason_expert(user_msg, report, history, rag_data)
         return {
             "reply": reasoned_reply,
             "category": category,
             "engine": "trace_mail_neural_rules",
+            "citations": rag_data.get("citations", []),
+            "rag_augmented": bool(rag_data.get("citations")),
             "suggested_prompts": cls._get_contextual_prompts(user_msg, report)
         }
 
@@ -89,9 +109,10 @@ class ForensicCopilot:
         query: str,
         report: Optional[Dict[str, Any]],
         history: Optional[List[Dict[str, str]]],
-        model_name: Optional[str]
+        model_name: Optional[str],
+        rag_data: Optional[Dict[str, Any]] = None
     ) -> Optional[str]:
-        """Attempts to query local Ollama instance with timeout."""
+        """Attempts to query local Ollama instance with timeout and RAG injection."""
         try:
             context_summary = "No active report scanned yet."
             if report:
@@ -107,16 +128,21 @@ class ForensicCopilot:
                     "reasons": report.get("ai", {}).get("reasons", [])
                 })
 
+            system_text = (
+                "You are TraceMail AI Forensic Copilot, an expert cybersecurity engineer "
+                "and RFC 5322 email forensics specialist. You assist SOC analysts in evaluating "
+                "phishing, BEC, spoofing, and malicious headers. Keep responses concise, professional, "
+                "and formatted with Markdown bullet points.\n\n"
+                f"ACTIVE EMAIL INVESTIGATION REPORT CONTEXT:\n{context_summary}"
+            )
+
+            if rag_data and rag_data.get("augmented_context"):
+                system_text += f"\n\n{rag_data['augmented_context']}"
+
             messages = [
                 {
                     "role": "system",
-                    "content": (
-                        "You are TraceMail AI Forensic Copilot, an expert cybersecurity engineer "
-                        "and RFC 5322 email forensics specialist. You assist SOC analysts in evaluating "
-                        "phishing, BEC, spoofing, and malicious headers. Keep responses concise, professional, "
-                        "and formatted with Markdown bullet points.\n\n"
-                        f"ACTIVE EMAIL INVESTIGATION REPORT CONTEXT:\n{context_summary}"
-                    )
+                    "content": system_text
                 }
             ]
 
@@ -128,15 +154,27 @@ class ForensicCopilot:
             messages.append({"role": "user", "content": query})
 
             model = model_name or "glm-5.3:cloud"
-            payload = json.dumps({"model": model, "messages": messages, "stream": False}).encode("utf-8")
-            req = urllib.request.Request(cls.OLLAMA_URL, data=payload, headers={"Content-Type": "application/json"})
+            payload = json.dumps({
+                "model": model,
+                "messages": messages,
+                "stream": False,
+                "options": {
+                    "temperature": 0.2,
+                    "top_p": 0.9
+                }
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                cls.OLLAMA_URL,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
 
             with urllib.request.urlopen(req, timeout=cls.OLLAMA_TIMEOUT) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode("utf-8"))
-                    content = data.get("message", {}).get("content", "").strip()
-                    if content:
-                        return content
+                    return data.get("message", {}).get("content", "").strip()
         except Exception:
             pass  # Fall back cleanly
         return None
@@ -146,22 +184,29 @@ class ForensicCopilot:
         cls,
         query: str,
         report: Optional[Dict[str, Any]],
-        history: Optional[List[Dict[str, str]]]
+        history: Optional[List[Dict[str, str]]],
+        rag_data: Optional[Dict[str, Any]] = None
     ) -> tuple[str, str]:
-        """Deterministic forensic analyst engine matching semantic intent."""
+        """Deterministic forensic analyst engine matching semantic intent with RAG augmentation."""
         q = query.lower()
 
         if not report or (not report.get("fraud_score") and not report.get("headers")):
-            return (
+            standby_text = (
                 "### 🛰️ TraceMail AI Copilot Standby Mode\n\n"
                 "No email has been actively scanned in the forensic console yet.\n\n"
                 "**How to get started:**\n"
                 "1. Select any pre-loaded threat vector from the **Pre-loaded Forensic Samples** menu (e.g. *Credential Harvest SSRF Attack* or *Vendor Bank Change BEC*).\n"
                 "2. Click **Load & Deep Scan**.\n"
                 "3. Return here, and I will dissect its RFC headers, domain WHOIS telemetry, timing anomalies, and out-of-band verification steps for you!\n\n"
-                "*You can also ask general email security questions right now, such as 'What is DMARC alignment?' or 'How does display name spoofing work?'*",
-                "STANDBY"
+                "*You can also ask general email security questions right now, such as 'What is DMARC alignment?' or 'How does display name spoofing work?'*"
             )
+            # If user asked a RAG-addressable query even without an active report
+            if rag_data and rag_data.get("augmented_context") and any(w in q for w in ["mitre", "cisa", "fbi", "rfc", "playbook", "snort", "sigma"]):
+                return (
+                    f"{rag_data['augmented_context']}\n\n*Load an email in the console to correlate with active telemetry.*",
+                    "RAG_INTELLIGENCE"
+                )
+            return standby_text, "STANDBY"
 
         # Extract Report Telemetry
         score = report.get("fraud_score", 0)
@@ -185,6 +230,19 @@ class ForensicCopilot:
         dmarc_pass = headers.get("dmarc", False)
 
         # --- INTENT ROUTING ---
+
+        # 0. EXPLICIT RAG INTENT (MITRE, CISA/FBI, Detection Rules, Ledger Precedents)
+        if any(w in q for w in ["mitre", "playbook", "cisa", "fbi", "ic3", "snort", "sigma", "rule", "ledger", "history", "previous incident"]):
+            if rag_data and rag_data.get("augmented_context"):
+                reply = [
+                    rag_data["augmented_context"],
+                    "",
+                    "#### 🔒 Active Incident Defense Mapping:",
+                    f"- **Observed Target:** `{from_hdr}` | **Origin:** `{origin_ip}`",
+                    f"- **Risk Posture:** `{risk}` ({score}/100)",
+                    "- **Action:** Apply CISA out-of-band verification and activate the perimeter rules above."
+                ]
+                return "\n".join(reply), "RAG_INTELLIGENCE"
 
         # 1. OVERALL INVESTIGATION REPORT / SUMMARY
         if any(w in q for w in ["report", "summary", "summarize", "overview", "verdict", "score", "why flagged", "explain this"]):
@@ -354,33 +412,53 @@ class ForensicCopilot:
                 f"   - Retain Evidence SHA-256 Hash: `{report.get('forensic_hash', 'N/A')}` for chain-of-custody compliance.",
                 "   - Click **Export PDF Dossier** in the console to generate the court-ready forensic incident packet."
             ]
+            if rag_data and rag_data.get("augmented_context"):
+                reply.extend([
+                    "",
+                    rag_data["augmented_context"]
+                ])
             return "\n".join(reply), "REMEDIATION"
 
         # 8. DEFAULT COMPREHENSIVE ANSWER
-        return (
-            f"### 🧠 TraceMail AI Forensic Copilot Analysis\n\n"
-            f"Regarding your inquiry on **'{query}'**:\n\n"
-            f"The current target email is categorized as **{label}** with a threat score of **{score}/100** ({risk} risk).\n\n"
-            f"- **Sender Identity:** `{from_hdr}`\n"
-            f"- **Reply-To Alignment:** `{reply_to}`\n"
-            f"- **Origin Physical Relay:** {geo.get('city', 'Unknown')}, {geo.get('country', 'N/A')} (`{origin_ip}`)\n"
-            f"- **Key Threat Factors:** {', '.join(str(r) for r in reasons) if reasons else 'Clean / Standard Corporate Communication'}\n\n"
-            f"**Suggested Next Inquiries:**\n"
-            f"- Ask: *'Explain the domain WHOIS details'*\n"
-            f"- Ask: *'Why did SPF or DKIM pass/fail?'*\n"
-            f"- Ask: *'What out-of-band verification steps are required?'*",
-            "GENERAL_INQUIRY"
-        )
+        default_reply = [
+            "### 🧠 TraceMail AI Forensic Copilot Analysis",
+            "",
+            f"Regarding your inquiry on **'{query}'**:",
+            "",
+            f"The current target email is categorized as **{label}** with a threat score of **{score}/100** ({risk} risk).",
+            "",
+            f"- **Sender Identity:** `{from_hdr}`",
+            f"- **Reply-To Alignment:** `{reply_to}`",
+            f"- **Origin Physical Relay:** {geo.get('city', 'Unknown')}, {geo.get('country', 'N/A')} (`{origin_ip}`)",
+            f"- **Key Threat Factors:** {', '.join(str(r) for r in reasons) if reasons else 'Clean / Standard Corporate Communication'}"
+        ]
+
+        if rag_data and rag_data.get("augmented_context"):
+            default_reply.extend([
+                "",
+                rag_data["augmented_context"]
+            ])
+
+        default_reply.extend([
+            "",
+            "**Suggested Next Inquiries:**",
+            "- Ask: *'Explain the domain WHOIS details'*",
+            "- Ask: *'Why did SPF or DKIM pass/fail?'*",
+            "- Ask: *'What out-of-band verification steps are required?'*"
+        ])
+
+        return "\n".join(default_reply), "GENERAL_INQUIRY"
 
     @classmethod
     def _get_default_prompts(cls, report: Optional[Dict[str, Any]]) -> List[str]:
         return [
             "Explain Overall Threat Verdict",
+            "Show CISA & FBI BEC Playbook",
+            "Map to MITRE ATT&CK & D3FEND",
+            "Generate Snort 3 & Sigma Rules",
             "Explain SPF, DKIM & DMARC Headers",
             "Inspect Sender Domain & WHOIS",
-            "Explain MTA Hops & Timing Delays (ΔT)",
-            "Is it safe to open or click links?",
-            "What out-of-band verification is needed?"
+            "Explain MTA Hops & Timing Delays (ΔT)"
         ]
 
     @classmethod
@@ -403,5 +481,11 @@ class ForensicCopilot:
                 "Where did this email physically originate?",
                 "Is the origin IP connected to TOR?",
                 "Explain how attackers forge Received headers"
+            ]
+        if "playbook" in q or "cisa" in q or "remediation" in q:
+            return [
+                "Generate Snort 3 rule for this origin",
+                "Show SWIFT recall procedure",
+                "Audit Exchange inbox forwarding rules"
             ]
         return cls._get_default_prompts(report)

@@ -329,6 +329,50 @@ class PipelineTests(unittest.TestCase):
         self.assertTrue(parsed["hops"][0]["is_public_ip"])
         self.assertEqual(parsed["origin_ip"], "2001:4860:4860::8888")
 
+    def test_rag_engine_retrieval(self):
+        from engine.rag_engine import ForensicRAG
+        # 1. MITRE ATT&CK retrieval
+        phish_docs = ForensicRAG.retrieve("Spearphishing links and punycode domain harvesting", top_k=2)
+        self.assertGreaterEqual(len(phish_docs), 1)
+        self.assertIn("MITRE-T1566", phish_docs[0]["id"])
+
+        # 2. CISA & FBI Wire Fraud Playbook retrieval
+        bec_docs = ForensicRAG.retrieve("Vendor bank account change and wire transfer diversion", top_k=2)
+        self.assertGreaterEqual(len(bec_docs), 1)
+        bec_ids = [d["id"] for d in bec_docs]
+        self.assertIn("PLAYBOOK-BEC-01", bec_ids)
+        playbook = next(d for d in bec_docs if d["id"] == "PLAYBOOK-BEC-01")
+        self.assertIn("SWIFT", " ".join(playbook["raw"]["immediate_actions"]))
+
+        # 3. RFC Standards retrieval
+        rfc_docs = ForensicRAG.retrieve("DMARC alignment strict vs relaxed mode", top_k=2)
+        self.assertGreaterEqual(len(rfc_docs), 1)
+        self.assertEqual(rfc_docs[0]["id"], "RFC-7489")
+
+    def test_copilot_rag_augmented_reply(self):
+        from engine.copilot_engine import ForensicCopilot
+        sample_report = {
+            "fraud_score": 85,
+            "risk_level": "CRITICAL",
+            "label": "fraud",
+            "confidence": 90,
+            "headers": {
+                "from": "billing@vendor.com",
+                "reply_to": "attacker@evil.xyz",
+                "origin_ip": "198.98.56.12",
+                "spf": True,
+                "dkim": True,
+                "dmarc": False,
+                "reasons": ["REPLY_TO_DOMAIN_MISMATCH"]
+            },
+            "ai": {"bec_type": "wire fraud", "reasons": ["REPLY_TO_DOMAIN_MISMATCH"]},
+            "trace": {"geo": {"ip": "198.98.56.12", "city": "Dallas", "country": "US"}}
+        }
+        res = ForensicCopilot.query("What does CISA playbook say about wire fraud?", sample_report)
+        self.assertTrue(res.get("rag_augmented"))
+        self.assertGreaterEqual(len(res.get("citations", [])), 1)
+        self.assertIn("SWIFT", res["reply"])
+
 
 if __name__ == "__main__":
     unittest.main()

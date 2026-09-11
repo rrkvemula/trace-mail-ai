@@ -1,0 +1,50 @@
+[
+  {
+    "id": "RFC-7489",
+    "title": "RFC 7489 - Domain-based Message Authentication, Reporting, and Conformance (DMARC)",
+    "category": "EMAIL_AUTHENTICATION",
+    "summary": "Defines domain-level authentication policy mechanisms for senders to publish how receivers should handle unauthenticated emails claiming to be from their domain.",
+    "key_invariants": [
+      "Alignment: DMARC requires that the From header domain matches either the authenticated SPF domain (Return-Path) or the authenticated DKIM domain (d= tag).",
+      "Strict vs Relaxed Mode: Under relaxed alignment (aspf=r, adkim=r), subdomains match the organizational parent (e.g., mail.corp.com matches corp.com). Under strict alignment (aspf=s, adkim=s), exact domain string matching is enforced.",
+      "Policy Modes: p=none (monitoring only, no rejection), p=quarantine (deliver to junk folder), p=reject (strictly bounce/drop message at SMTP edge)."
+    ],
+    "forensic_guidance": "If an email fails SPF and DKIM alignment against the visible From header, DMARC validation fails. A receiver adhering to RFC 7489 MUST apply the published policy action."
+  },
+  {
+    "id": "RFC-7208",
+    "title": "RFC 7208 - Sender Policy Framework (SPF)",
+    "category": "EMAIL_AUTHENTICATION",
+    "summary": "Allows domain owners to publish lists of IP addresses and CIDR subnets authorized to send emails on behalf of their domain.",
+    "key_invariants": [
+      "Evaluated Identity: SPF evaluates the envelope sender (SMTP MAIL FROM / Return-Path), NOT the RFC 5322 visible From header.",
+      "ESP Relay Forwarding: Third-party email services (SendGrid, Mailgun, Amazon SES) stamp their own Return-Path domain (e.g., bounces.sendgrid.net) which passes SPF independently of the sender domain.",
+      "Lookup Limit: SPF evaluation must not exceed 10 DNS queries (including 'include', 'a', 'mx', 'ptr', 'exists'). Exceeding 10 queries results in a PermError."
+    ],
+    "forensic_guidance": "SPF pass alone does NOT guarantee authenticity of the visible From header; DMARC domain alignment is mandatory to verify that SPF authoritatively covers the sender identity."
+  },
+  {
+    "id": "RFC-6376",
+    "title": "RFC 6376 - DomainKeys Identified Mail (DKIM) Signatures",
+    "category": "EMAIL_AUTHENTICATION",
+    "summary": "Cryptographically signs email headers and body using an asymmetric public/private key pair published via DNS TXT records.",
+    "key_invariants": [
+      "Canonicalization: Specifies whitespace and casing normalization ('simple' vs 'relaxed') for header (c=relaxed/relaxed) and body.",
+      "Domain Tag (d=): Specifies the domain taking responsibility for the signature. Must match the visible From domain for DMARC alignment.",
+      "Selector (s=): Specifies the DNS record prefix where the public RSA/Ed25519 key is fetched (selector._domainkey.domain)."
+    ],
+    "forensic_guidance": "A valid DKIM signature proves that the signed headers and body hash were not altered in transit since signing by the key owner."
+  },
+  {
+    "id": "RFC-5322",
+    "title": "RFC 5322 - Internet Message Format (MIME & Envelope Headers)",
+    "category": "HEADER_SYNTAX",
+    "summary": "Defines the standard syntax and structure for electronic mail messages, mandatory header fields, and relay Received tracing.",
+    "key_invariants": [
+      "Chronology: Each intermediate MTA prepends a 'Received:' header at the very top. Hop analysis must be read from bottom (origin) to top (destination).",
+      "Timestamp Invariant: Timestamps in the Received chain must be strictly monotonically non-decreasing. Any negative latency indicates clock desynchronization or forged relay headers.",
+      "From vs Reply-To: 'From' specifies author; 'Reply-To' specifies destination for responses. Mismatched organizational domains indicate potential fraud or legitimate mailing lists."
+    ],
+    "forensic_guidance": "Always compute delta T between consecutive hops to identify forged headers and analyze originating IP from the bottom-most public hop."
+  }
+]

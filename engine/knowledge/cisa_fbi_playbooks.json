@@ -1,0 +1,48 @@
+[
+  {
+    "id": "PLAYBOOK-BEC-01",
+    "title": "CISA & FBI IC3: Business Email Compromise (BEC) Financial Kill Chain Procedure",
+    "category": "INCIDENT_RESPONSE",
+    "summary": "Standard operating procedure for responding to active or suspected vendor wire diversion requests, invoice rerouting, or unauthorized bank account changes.",
+    "severity": "CRITICAL",
+    "trigger_criteria": "Email requesting changes to recipient bank account numbers, SWIFT codes, IBANs, or payment schedules, especially when combined with Reply-To domain mismatches or secrecy requests.",
+    "immediate_actions": [
+      "1. FREEZE ALL TRANSFERS: Immediately place a temporary hold on the pending financial transfer in the ERP/Treasury management system.",
+      "2. OUT-OF-BAND VOICE VERIFICATION: Call the vendor using an established, pre-existing telephone number from official accounting records. NEVER dial numbers or click links listed in the suspicious email or invoice.",
+      "3. DUAL-AUTHORIZATION AUDIT: Require two distinct corporate authorized signers to approve any vendor banking alteration above $5,000.",
+      "4. SWIFT RECALL INITIATION: If funds were already released, contact the originating financial institution immediately and instruct them to issue a formal SWIFT Recall Request within the 72-hour international clawback window.",
+      "5. FBI IC3 INCIDENT LODGEMENT: File a detailed incident report at https://www.ic3.gov with transaction hashes, receiving bank details, and complete raw email headers."
+    ],
+    "forensic_artifacts_to_preserve": ["Raw RFC 5322 .eml file", "Full Received hop header chain", "Originating IP address", "Wire instruction PDF and metadata"]
+  },
+  {
+    "id": "PLAYBOOK-CRED-02",
+    "title": "CISA: Credential Harvesting & Session Hijacking Incident Containment",
+    "category": "CONTAINMENT_PLAYBOOK",
+    "summary": "Rapid containment sequence when an employee interacts with a weaponized phishing link, fake Microsoft 365 / Google Workspace portal, or Evilginx reverse proxy.",
+    "severity": "HIGH",
+    "trigger_criteria": "Employee entered credentials into lookalike login page, acknowledged suspicious MFA prompt, or clicked link flagged for SSRF / Punycode domain.",
+    "immediate_actions": [
+      "1. REVOKE ALL SESSIONS: Use Entra ID / Google Admin to invalidate all active refresh tokens and sign the user out of all sessions globally.",
+      "2. RESET PRIMARY PASSWORD: Force an out-of-band password change with a minimum 16-character passphrase.",
+      "3. AUDIT INBOX FORWARDING RULES: Check Exchange / Gmail rules for unauthorized inbox forwarding rules (e.g., auto-deleting billing notifications or forwarding to external Gmail addresses).",
+      "4. AUDIT OAUTH CONSENT GRANTS: Inspect registered enterprise apps and revoke suspicious third-party OAuth app authorizations.",
+      "5. ENFORCE HARDWARE TOKEN: Provision FIDO2/WebAuthn hardware security key to eliminate future session-replay risk."
+    ],
+    "forensic_artifacts_to_preserve": ["User browser history and IP", "IdP Sign-in logs", "OAuth consent audit logs"]
+  },
+  {
+    "id": "PLAYBOOK-RELAY-03",
+    "title": "CERT: Forged Relay & Open SMTP Abuse Containment",
+    "category": "NETWORK_DEFENSE",
+    "summary": "Remediation protocol when an email exhibits negative latency, reversed timestamps, or forged intermediate Received headers.",
+    "severity": "HIGH",
+    "trigger_criteria": "Relay hop latency delta ΔT < -60 seconds, or hop IP claiming to be an internal mail exchange from an untrusted public ASN.",
+    "immediate_actions": [
+      "1. PERIMETER FIREWALL DROP: Add the true originating IP address to the external border firewall blocklist (IPTables / Palo Alto / Fortinet).",
+      "2. VERIFY INTERNAL RELAY INTEGRITY: Confirm whether the compromised hop corresponds to an internal open relay or misconfigured outbound smarthost.",
+      "3. REJECT UNTRUSTED INBOUND: Configure the edge MTA to strictly validate that Received headers match authenticated TCP connecting peers."
+    ],
+    "forensic_artifacts_to_preserve": ["Raw MTA TCP connection logs", "Complete Received header stack"]
+  }
+]

@@ -1,0 +1,52 @@
+[
+  {
+    "id": "MITRE-T1566",
+    "title": "T1566 - Phishing",
+    "category": "INITIAL_ACCESS",
+    "summary": "Adversaries send phishing messages to gain initial access to victim systems. Phishing can be untargeted mass mailing or highly tailored spearphishing.",
+    "subtechniques": ["T1566.001 Spearphishing Attachment", "T1566.002 Spearphishing Link", "T1566.003 Spearphishing via Service"],
+    "indicators": ["Lookalike domains", "Urgent call-to-action", "Unsolicited invoices", "Forged sender envelopes"],
+    "mitigation": "Enforce strict SPF, DKIM, and DMARC policies (p=reject). Deploy multi-factor authentication resilient to phishing (FIDO2/WebAuthn). Implement automated link analysis and quarantine pipelines.",
+    "d3fend_mapping": "D3-EAA (Email Authentication Analysis), D3-MTA (Mail Transfer Agent Filtering)"
+  },
+  {
+    "id": "MITRE-T1566.001",
+    "title": "T1566.001 - Spearphishing Attachment",
+    "category": "INITIAL_ACCESS",
+    "summary": "Adversaries attach weaponized files (e.g. ISO disk images, VBS scripts, HTA applications, password-protected archives) designed to execute code upon opening.",
+    "subtechniques": [],
+    "indicators": [".iso", ".vbs", ".hta", ".exe", ".scr", ".cmd", ".docm", ".one", "Encrypted ZIP with password in email body"],
+    "mitigation": "Block dangerous executable and script attachments at the secure email gateway. Unpack containers (.iso, .vhd, .zip) and inspect child payloads in air-gapped sandboxes.",
+    "d3fend_mapping": "D3-FA (File Content Analysis), D3-EBE (Executable Binary Extraction)"
+  },
+  {
+    "id": "MITRE-T1566.002",
+    "title": "T1566.002 - Spearphishing Link",
+    "category": "INITIAL_ACCESS",
+    "summary": "Adversaries send emails containing hyperlinks that direct victims to credential harvesting portals, reverse-proxy phishing kits (e.g. Evilginx), or drive-by malware downloads.",
+    "subtechniques": [],
+    "indicators": ["Punycode domains (xn--)", "IP-literal URLs", "Cloud metadata targets (169.254.169.254)", "Open redirectors", "Lookalike SSO login pages"],
+    "mitigation": "Static link syntax verification without making live network requests. Block direct IP URLs, Punycode homographs, and internal cloud metadata requests. Enforce FIDO2 WebAuthn keys.",
+    "d3fend_mapping": "D3-URLA (URL Analysis), D3-DNSA (DNS Domain Reputation Analysis)"
+  },
+  {
+    "id": "MITRE-T1586.002",
+    "title": "T1586.002 - Compromised Email Account",
+    "category": "RESOURCE_DEVELOPMENT",
+    "summary": "Adversaries compromise legitimate email accounts (via credential stuffing, session hijacking, or password reuse) and use them to send trusted phishing and BEC requests to vendors, partners, and colleagues.",
+    "subtechniques": [],
+    "indicators": ["Valid SPF/DKIM/DMARC pass from known vendor domain", "Mismatched Reply-To header pointing to external domain", "New bank account or remittance routing request", "Evasion keywords like 'do not call me'"],
+    "mitigation": "Mandatory out-of-band telephone verification for financial record modifications. Implement anomalous mailbox behavior alerting (impossible travel, new forwarding rules).",
+    "d3fend_mapping": "D3-EAA (Email Authentication Analysis), D3-UDBA (User & Domain Behavioral Analytics)"
+  },
+  {
+    "id": "MITRE-T1534",
+    "title": "T1534 - Internal Spearphishing",
+    "category": "LATERAL_MOVEMENT",
+    "summary": "Adversaries use a compromised internal corporate email account to send spearphishing emails to other employees within the same organization to escalate privileges or expand access.",
+    "subtechniques": [],
+    "indicators": ["Internal From header matching corporate domain", "Requesting HR/payroll updates or executive approval", "Absence of internal authentication results or strange relay hops"],
+    "mitigation": "Inspect internal-to-internal email traffic with the same rigor as perimeter mail. Require step-up MFA for sensitive actions. Monitor anomalous internal email volume spikes.",
+    "d3fend_mapping": "D3-MTA (Internal Mail Routing Inspection)"
+  }
+]

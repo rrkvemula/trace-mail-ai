@@ -1,0 +1,29 @@
+[
+  {
+    "id": "RULE-SNORT-SMTP-RELAY",
+    "title": "Snort 3 Rule: Suspicious Outbound SMTP Authentication Bypass / Direct IP Connection",
+    "format": "SNORT3",
+    "category": "NETWORK_DETECTION",
+    "summary": "Detects endpoint hosts attempting to connect directly to external SMTP relays on port 25/587 without traversing authorized corporate MTA smarthosts.",
+    "rule_syntax": "alert tcp $HOME_NET any -> $EXTERNAL_NET [25, 465, 587] (msg:\"TRACE-MAIL AI: Unauthorized Outbound SMTP Relay Detected\"; flow:to_server,established; content:\"HELO\",nocase; metadata:service smtp, impact_flag red; sid:3000001; rev:1;)",
+    "usage": "Deploy on internal gateway or perimeter sensor to detect malware-originated spam or forged relay injection."
+  },
+  {
+    "id": "RULE-SIGMA-EXCHANGE-FWD",
+    "title": "Sigma Rule: Suspicious Inbox Auto-Forwarding Rule Created in Microsoft 365",
+    "format": "SIGMA",
+    "category": "CLOUD_IDENTITY",
+    "summary": "Detects the creation of mailbox inbox rules that automatically forward incoming emails to external domains (classic BEC persistence mechanism).",
+    "rule_syntax": "title: Suspicious Inbox Forwarding Rule Created\nid: 7b2d51fb-0e12-4f81-8176-7916bfdf2101\nstatus: production\ndescription: Detects creation of forwarding rule in Exchange Online targeting external recipient.\nlogsource:\n    product: m365\n    service: exchange\ndetection:\n    selection:\n        Operation: 'New-InboxRule'\n        Parameters|contains:\n            - 'ForwardTo'\n            - 'ForwardAsAttachmentTo'\n            - 'RedirectTo'\n    condition: selection\nfalsepositives:\n    - Legitimate user forwarding (rare, audit required)\nlevel: high\ntags:\n    - attack.collection\n    - attack.t1114.003",
+    "usage": "Ingest into SIEM (Splunk, Wazuh, Elastic) monitoring Microsoft 365 audit logs."
+  },
+  {
+    "id": "RULE-IPTABLES-DROP",
+    "title": "Perimeter Firewall: Automated IPTables / NFTables Host Quarantine Drop",
+    "format": "IPTABLES",
+    "category": "PERIMETER_BLOCK",
+    "summary": "Immediate perimeter drop rule for malicious originating IP addresses or known attack relays.",
+    "rule_syntax": "sudo iptables -I INPUT -s {ORIGIN_IP} -j DROP\nsudo iptables -I FORWARD -s {ORIGIN_IP} -j DROP",
+    "usage": "Execute via SOAR or local command on the firewall to immediately sever inbound packets from the threat actor IP."
+  }
+]
