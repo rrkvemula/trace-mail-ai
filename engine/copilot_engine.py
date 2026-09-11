@@ -28,19 +28,43 @@ class ForensicCopilot:
     ) -> Dict[str, Any]:
         """
         Processes user query against current forensic report context.
-        Attempts Ollama neural inference first; seamlessly falls back
-        to deterministic forensic reasoning engine.
+        Prioritizes ARGUS-X air-gapped native reasoning engine.
+        Falls back to local Ollama or deterministic expert rules.
         """
         user_msg = (user_message or "").strip()
         if not user_msg:
             return {
-                "reply": "Greetings Analyst. How can I assist with your email forensic investigation today? You can ask about headers, domain verification, threat score, or MTA hops.",
+                "reply": (
+                    "**[ARGUS-X FORENSIC KERNEL ONLINE]**\n\n"
+                    "Greetings Analyst. I am **ARGUS-X**, your native air-gapped forensic intelligence engine. "
+                    "I evaluate RFC 5322 invariants, authenticate cryptographic alignment, and generate automated defensive rules.\n\n"
+                    "*You can ask:*\n"
+                    "- *'Why is this email flagged as high risk?'*\n"
+                    "- *'Generate a Snort 3 rule to block this threat.'*\n"
+                    "- *'What is the recommended SOC remediation playbook?'*\n"
+                    "- *'Explain the SPF and DMARC alignment status.'*"
+                ),
                 "category": "GREETING",
-                "engine": "deterministic",
-                "suggested_prompts": cls._get_default_prompts(report)
+                "engine": "argus_x_native",
+                "suggested_prompts": [
+                    "Explain Overall Threat Verdict",
+                    "Generate Snort 3 Detection Rule",
+                    "Show Incident Remediation Playbook",
+                    "Perimeter Firewall IPTables Drop",
+                    "Audit RFC Header Invariants"
+                ]
             }
 
-        # 1. Try local Ollama if configured and available
+        # 1. Primary: ARGUS-X Native Forensic Intelligence Engine
+        try:
+            from argus_x.analyst import ArgusAnalyst
+            argus_res = ArgusAnalyst.query(user_msg, report, history)
+            if argus_res and argus_res.get("reply"):
+                return argus_res
+        except Exception:
+            pass
+
+        # 2. Secondary: Local Ollama Neural Inference (if available)
         ollama_res = cls._try_ollama(user_msg, report, history, preferred_model)
         if ollama_res:
             return {
@@ -50,7 +74,7 @@ class ForensicCopilot:
                 "suggested_prompts": cls._get_contextual_prompts(user_msg, report)
             }
 
-        # 2. Deterministic Forensic Reasoning Engine
+        # 3. Deterministic Forensic Reasoning Engine Fallback
         reasoned_reply, category = cls._reason_expert(user_msg, report, history)
         return {
             "reply": reasoned_reply,

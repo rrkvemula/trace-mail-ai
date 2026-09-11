@@ -9,6 +9,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script src="https://unpkg.com/globe.gl"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
@@ -246,6 +247,27 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 999px; }
     @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+
+    /* =============================================================
+       DEDICATED 3D HOLOGRAPHIC HOP RADAR SLIDE-IN STAGE
+       ============================================================= */
+    #holoRadarBackdrop {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #holoRadarBackdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #holoRadarPanel {
+      transform: translateX(100%);
+      transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: -20px 0 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(6, 182, 212, 0.15);
+    }
+    #holoRadarPanel.active {
+      transform: translateX(0%);
+    }
   </style>
 </head>
 <body>
@@ -438,6 +460,10 @@
               <span>GEOINT RADAR ● LIVE</span>
             </span>
             <div class="flex gap-1.5 pointer-events-auto">
+              <button type="button" onclick="openHoloRadarSlide()" class="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 border border-cyan-400/50 rounded-lg text-[10px] font-mono font-bold transition backdrop-blur-md shadow-md cursor-pointer flex items-center gap-1.5" title="Launch God's Eye 3D Satellite Earth">
+                <i class="fa-solid fa-eye text-cyan-400"></i>
+                <span>God's Eye 3D</span>
+              </button>
               <button type="button" onclick="toggleGlobeOrbit()" id="orbitBtn" class="px-2.5 py-1 bg-black/75 hover:bg-black text-cyan-300 border border-cyan-400/30 rounded-lg text-[10px] font-mono transition backdrop-blur-md shadow-md cursor-pointer" title="Toggle automatic planetary orbit">
                 ⟳ Orbit: ON
               </button>
@@ -451,6 +477,15 @@
           </div>
 
           <div id="globe" class="h-[320px] w-full rounded-2xl bg-black cursor-grab active:cursor-grabbing"></div>
+
+          <!-- Dedicated Slide Stage Launch Bar -->
+          <div class="p-2.5 border-t border-cyan-500/20 bg-gradient-to-r from-cyan-950/40 to-blue-950/40">
+            <button type="button" onclick="openHoloRadarSlide()" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-950/80 via-blue-950/60 to-black border border-cyan-500/50 hover:border-cyan-400 text-cyan-300 hover:text-white font-mono text-xs font-bold transition flex items-center justify-center gap-2 group cursor-pointer shadow-lg shadow-cyan-950/50">
+              <i class="fa-solid fa-eye text-cyan-400 group-hover:scale-110 transition"></i>
+              <span>👁️ LAUNCH GOD'S EYE // 3D SATELLITE EARTH</span>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold">4K BLUE MARBLE</span>
+            </button>
+          </div>
 
           <!-- Bottom Telemetry Bar -->
           <div class="p-3 flex justify-between items-center text-[10px] tracking-widest font-mono border-t border-white/5 bg-black/30 rounded-b-2xl">
@@ -531,8 +566,13 @@
           <button onclick="switchResultTab('raw')" class="res-tab px-3.5 py-1.5 rounded-xl font-medium opacity-60 hover:opacity-100 transition" data-res="raw">Raw Evidence JSON</button>
           <button onclick="switchResultTab('copilot')" class="res-tab px-3.5 py-1.5 rounded-xl font-medium opacity-75 hover:opacity-100 transition flex items-center gap-1.5 text-cyan-300 border border-cyan-500/30 bg-cyan-950/20" data-res="copilot">
             <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
-            <i class="fa-solid fa-brain-circuit"></i>
-            <span>AI Copilot</span>
+            <i class="fa-solid fa-shield-halved"></i>
+            <span>ARGUS-X AI</span>
+          </button>
+          <button type="button" onclick="openHoloRadarSlide()" class="res-tab px-3.5 py-1.5 rounded-xl font-medium opacity-80 hover:opacity-100 transition flex items-center gap-1.5 text-cyan-300 border border-cyan-500/40 bg-cyan-950/30 hover:border-cyan-400 cursor-pointer" title="Launch God's Eye 3D Satellite Earth">
+            <i class="fa-solid fa-eye text-cyan-400"></i>
+            <span>God's Eye 3D</span>
+            <span class="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">ORBITAL</span>
           </button>
         </div>
       </div>
@@ -725,16 +765,16 @@
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="text-sm font-bold tracking-wide text-white">Forensic AI Copilot</span>
-                  <span class="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                    ONLINE
+                  <span class="text-sm font-bold tracking-wide text-white">ARGUS-X Forensic Sentinel</span>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
+                    AIR-GAPPED NATIVE AI
                   </span>
                   <span id="copilotReportBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-white/10 text-cyan-300">
                     Awaiting Target Scan
                   </span>
                 </div>
-                <p class="text-xs opacity-60 mt-0.5 font-mono">Real-time reasoning over RFC headers, domain WHOIS, MTA latency & out-of-band protocols</p>
+                <p class="text-xs opacity-60 mt-0.5 font-mono">Proprietary RFC 5322 Invariant Reasoning, Snort 3 Synthesis & Air-Gapped Triage</p>
               </div>
             </div>
             <div class="flex gap-2">
@@ -747,26 +787,26 @@
           <!-- Quick Suggestion Prompt Chips -->
           <div class="space-y-1.5">
             <span class="text-[10px] font-mono tracking-widest opacity-50 uppercase flex items-center gap-1">
-              <i class="fa-solid fa-bolt text-amber-400"></i> Forensic Inquiry Presets
+              <i class="fa-solid fa-bolt text-cyan-400"></i> ARGUS-X Operational Actions & Presets
             </span>
             <div id="copilotChips" class="flex flex-wrap gap-2">
               <button type="button" onclick="askCopilotPrompt('Explain Overall Threat Verdict')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
                 📊 Explain Verdict
               </button>
+              <button type="button" onclick="askCopilotPrompt('Generate a Snort 3 rule to block this threat')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-cyan-500/30 hover:border-cyan-400/60 text-xs font-mono text-cyan-300 transition">
+                🛡️ Generate Snort 3 Rule
+              </button>
+              <button type="button" onclick="askCopilotPrompt('What is the recommended SOC remediation playbook?')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
+                📋 Incident Playbook
+              </button>
+              <button type="button" onclick="askCopilotPrompt('Generate firewall iptables commands to isolate origin IP')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
+                🧱 Firewall Isolation
+              </button>
               <button type="button" onclick="askCopilotPrompt('Explain SPF, DKIM & DMARC Headers')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
-                🛡️ Explain Headers (SPF/DKIM)
+                🔐 Cryptographic Invariants
               </button>
               <button type="button" onclick="askCopilotPrompt('Inspect Sender Domain & WHOIS')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
                 🌐 Inspect Domain & WHOIS
-              </button>
-              <button type="button" onclick="askCopilotPrompt('Explain MTA Hops & Timing Delays (ΔT)')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
-                ✈️ Analyze MTA Hops
-              </button>
-              <button type="button" onclick="askCopilotPrompt('Is it safe to open or click links?')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
-                🚨 Is it Safe to Open?
-              </button>
-              <button type="button" onclick="askCopilotPrompt('What out-of-band verification is needed?')" class="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/50 text-xs font-mono text-cyan-300 transition">
-                🔒 Out-of-Band Steps
               </button>
             </div>
           </div>
@@ -776,12 +816,12 @@
             <!-- Initial Assistant Greeting -->
             <div class="flex gap-3 items-start">
               <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex-shrink-0 flex items-center justify-center text-cyan-300 text-xs">
-                <i class="fa-solid fa-robot"></i>
+                <i class="fa-solid fa-shield-halved"></i>
               </div>
               <div class="glass bg-white/5 p-4 rounded-2xl border border-white/10 max-w-2xl space-y-2 text-slate-200">
                 <div class="text-[10px] font-mono text-cyan-400 font-bold uppercase tracking-wider flex items-center justify-between">
-                  <span>TraceMail Forensic Copilot</span>
-                  <span class="opacity-50">READY</span>
+                  <span>ARGUS-X Sentinel</span>
+                  <span class="opacity-50">AIR-GAPPED READY</span>
                 </div>
                 <p class="text-xs leading-relaxed">
                   Greetings Analyst. I am your specialized RFC 5322 & Email Threat Intelligence assistant.
@@ -1834,13 +1874,14 @@
       const globeElem = document.getElementById('globe');
       if (typeof Globe === 'function' && globeElem) {
         globe = Globe()(globeElem)
-          .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
+          .globeImageUrl('/static/textures/earth-blue-marble.jpg')
+          .bumpImageUrl('/static/textures/earth-topology.png')
           .backgroundColor('#000000')
           .width(globeElem.clientWidth || 400)
           .height(320)
           .showAtmosphere(true)
-          .atmosphereColor('#06b6d4')
-          .atmosphereAltitude(0.18)
+          .atmosphereColor('#00e5ff')
+          .atmosphereAltitude(0.22)
           .arcColor('color')
           .arcDashLength(0.4)
           .arcDashGap(0.2)
@@ -1976,6 +2017,732 @@
         }
       });
     }
+
+    // =========================================================================
+    // "GOD'S EYE" // ARGUS-X PHOTOREALISTIC EARTH RECONNAISSANCE ENGINE (THREE.JS)
+    // =========================================================================
+    let holoRadarActive = false;
+    let holoScene = null, holoCamera = null, holoRenderer = null;
+    let holoGlobeMesh = null;
+    let holoEarthMesh = null, holoCloudsMesh = null, holoAtmosMesh = null;
+    let holoStarfield = null;
+    let holoSatellites = [];
+    let holoThreatReticle = null;
+    let holoHopArcs = [];
+    let holoAnimFrameId = null;
+    let holoAutoRotate = true;
+    let holoShowClouds = true;
+    let holoNightLightsIntensity = 0.85;
+    let holoLastThreatLat = null, holoLastThreatLng = null;
+    let holoTargetCamDist = 4.8;
+    let holoCurrentCamDist = 4.8;
+    let holoMouse = { isDragging: false, prevX: 0, prevY: 0 };
+    const holoTextureLoader = new THREE.TextureLoader();
+
+    function latLngToVec3(lat, lng, radius) {
+      const phi = (90 - lat) * (Math.PI / 180);
+      const theta = (lng + 180) * (Math.PI / 180);
+      return new THREE.Vector3(
+        -radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.cos(phi),
+        radius * Math.sin(phi) * Math.sin(theta)
+      );
+    }
+
+    function initHoloRadarThree() {
+      const canvas = document.getElementById('holoRadarCanvas');
+      if (!canvas || holoRenderer) return;
+
+      holoScene = new THREE.Scene();
+      const rect = canvas.getBoundingClientRect();
+      const width = rect.width || window.innerWidth * 0.82;
+      const height = rect.height || window.innerHeight;
+
+      holoCamera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
+      holoCamera.position.set(0, 0, 4.8);
+      holoCurrentCamDist = 4.8;
+      holoTargetCamDist = 4.8;
+
+      holoRenderer = new THREE.WebGLRenderer({
+        canvas: canvas,
+        antialias: true,
+        alpha: true,
+        powerPreference: "high-performance"
+      });
+      holoRenderer.setSize(width, height);
+      holoRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      holoRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+      holoRenderer.toneMappingExposure = 1.2;
+
+      // 1. Deep Space Starfield (Subtle orbital depth)
+      const starCount = 1200;
+      const starPositions = new Float32Array(starCount * 3);
+      for (let i = 0; i < starCount * 3; i += 3) {
+        const u = (Math.random() - 0.5) * 140;
+        const v = (Math.random() - 0.5) * 140;
+        const w = (Math.random() - 0.5) * 140;
+        if (Math.sqrt(u*u + v*v + w*w) < 25) continue;
+        starPositions[i] = u;
+        starPositions[i+1] = v;
+        starPositions[i+2] = w;
+      }
+      const starGeo = new THREE.BufferGeometry();
+      starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+      const starMat = new THREE.PointsMaterial({
+        color: 0x99ccff,
+        size: 0.1,
+        transparent: true,
+        opacity: 0.75
+      });
+      holoStarfield = new THREE.Points(starGeo, starMat);
+      holoScene.add(holoStarfield);
+
+      // 2. Cinematic Lighting: Directional Sun + Ambient Space Glow + Azure Rim
+      const sunLight = new THREE.DirectionalLight(0xffffff, 1.45);
+      sunLight.position.set(6, 3, 5);
+      holoScene.add(sunLight);
+
+      const ambLight = new THREE.AmbientLight(0x223355, 0.6);
+      holoScene.add(ambLight);
+
+      const rimLight = new THREE.PointLight(0x00d4ff, 0.85, 50);
+      rimLight.position.set(-6, -2, -5);
+      holoScene.add(rimLight);
+
+      // 3. Globe Parent Group
+      holoGlobeMesh = new THREE.Group();
+      holoScene.add(holoGlobeMesh);
+
+      // 4. Photorealistic Earth Core (Blue Marble 4K + Night Lights 4K + Bump Topology)
+      const r = 1.65;
+      const earthGeo = new THREE.SphereGeometry(r, 64, 64);
+      
+      const dayTex = holoTextureLoader.load('/static/textures/earth-blue-marble.jpg');
+      const nightTex = holoTextureLoader.load('/static/textures/earth-night.jpg');
+      const bumpTex = holoTextureLoader.load('/static/textures/earth-topology.png');
+
+      const earthMat = new THREE.MeshPhongMaterial({
+        map: dayTex,
+        bumpMap: bumpTex,
+        bumpScale: 0.045,
+        emissiveMap: nightTex,
+        emissive: new THREE.Color(0xffeedd),
+        emissiveIntensity: holoNightLightsIntensity,
+        specular: new THREE.Color(0x223344),
+        shininess: 15
+      });
+      holoEarthMesh = new THREE.Mesh(earthGeo, earthMat);
+      holoGlobeMesh.add(holoEarthMesh);
+
+      // 5. Atmospheric Dynamic Cloud Layer
+      const cloudTex = holoTextureLoader.load('/static/textures/earth-clouds.png');
+      const cloudGeo = new THREE.SphereGeometry(r * 1.012, 64, 64);
+      const cloudMat = new THREE.MeshStandardMaterial({
+        map: cloudTex,
+        transparent: true,
+        opacity: 0.42,
+        blending: THREE.AdditiveBlending
+      });
+      holoCloudsMesh = new THREE.Mesh(cloudGeo, cloudMat);
+      holoGlobeMesh.add(holoCloudsMesh);
+
+      // 6. Atmospheric Edge / Limb Glow (God's Eye Azure Halo)
+      const atmosGeo = new THREE.SphereGeometry(r * 1.035, 64, 64);
+      const atmosMat = new THREE.ShaderMaterial({
+        vertexShader: `
+          varying vec3 vNormal;
+          void main() {
+            vNormal = normalize(normalMatrix * normal);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vNormal;
+          void main() {
+            float intensity = pow(0.72 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.2);
+            gl_FragColor = vec4(0.0, 0.85, 1.0, 1.0) * intensity * 0.95;
+          }
+        `,
+        blending: THREE.AdditiveBlending,
+        side: THREE.BackSide,
+        transparent: true
+      });
+      holoAtmosMesh = new THREE.Mesh(atmosGeo, atmosMat);
+      holoGlobeMesh.add(holoAtmosMesh);
+
+      // 7. God's Eye Keyhole Orbital Satellite Grid
+      initOrbitalSatellites(r);
+
+      // 8. User Interaction: Mouse Drag, Tilt & Zoom
+      canvas.addEventListener('mousedown', (e) => {
+        holoMouse.isDragging = true;
+        holoMouse.prevX = e.clientX;
+        holoMouse.prevY = e.clientY;
+      });
+      window.addEventListener('mouseup', () => { holoMouse.isDragging = false; });
+      window.addEventListener('mousemove', (e) => {
+        if (holoMouse.isDragging && holoGlobeMesh) {
+          const dx = (e.clientX - holoMouse.prevX) * 0.0055;
+          const dy = (e.clientY - holoMouse.prevY) * 0.0055;
+          holoGlobeMesh.rotation.y += dx;
+          holoGlobeMesh.rotation.x = Math.max(Math.min(holoGlobeMesh.rotation.x + dy, 1.25), -1.25);
+          holoMouse.prevX = e.clientX;
+          holoMouse.prevY = e.clientY;
+        }
+      });
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        holoTargetCamDist = Math.min(Math.max(holoTargetCamDist + e.deltaY * 0.0035, 2.05), 7.5);
+      });
+
+      window.addEventListener('resize', resizeHoloRadar);
+    }
+
+    function initOrbitalSatellites(r) {
+      holoSatellites = [];
+      const orbits = [
+        { radX: r * 1.35, radY: r * 1.35, tiltX: 0.85, tiltZ: 0.4, speed: 0.008, color: 0x00ffcc },
+        { radX: r * 1.55, radY: r * 1.55, tiltX: -0.65, tiltZ: 0.8, speed: 0.005, color: 0x38bdf8 },
+        { radX: r * 1.85, radY: r * 1.85, tiltX: 0.25, tiltZ: -0.5, speed: 0.003, color: 0x818cf8 }
+      ];
+
+      orbits.forEach((orb) => {
+        const curve = new THREE.EllipseCurve(0, 0, orb.radX, orb.radY, 0, 2 * Math.PI, false, 0);
+        const pts = curve.getPoints(80).map(p => new THREE.Vector3(p.x, 0, p.y));
+        const ringGeo = new THREE.BufferGeometry().setFromPoints(pts);
+        const ringMat = new THREE.LineBasicMaterial({ color: orb.color, transparent: true, opacity: 0.25 });
+        const ringLine = new THREE.Line(ringGeo, ringMat);
+        ringLine.rotation.x = orb.tiltX;
+        ringLine.rotation.z = orb.tiltZ;
+        holoGlobeMesh.add(ringLine);
+
+        const satGroup = new THREE.Group();
+        const bodyGeo = new THREE.BoxGeometry(0.04, 0.025, 0.025);
+        const bodyMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        satGroup.add(new THREE.Mesh(bodyGeo, bodyMat));
+
+        const wingGeo = new THREE.BoxGeometry(0.12, 0.005, 0.03);
+        const wingMat = new THREE.MeshBasicMaterial({ color: 0x0099ff });
+        satGroup.add(new THREE.Mesh(wingGeo, wingMat));
+
+        const beacon = new THREE.Mesh(
+          new THREE.SphereGeometry(0.018, 8, 8),
+          new THREE.MeshBasicMaterial({ color: orb.color })
+        );
+        satGroup.add(beacon);
+
+        holoGlobeMesh.add(satGroup);
+        holoSatellites.push({ satGroup, ringLine, curve, progress: Math.random(), speed: orb.speed, tiltX: orb.tiltX, tiltZ: orb.tiltZ });
+      });
+    }
+
+    function createThreatReticle(lat, lng, isMalicious) {
+      if (!holoGlobeMesh) return;
+      if (holoThreatReticle) {
+        holoGlobeMesh.remove(holoThreatReticle.group);
+        holoThreatReticle = null;
+      }
+
+      const r = 1.65;
+      const targetPos = latLngToVec3(lat, lng, r);
+      const reticleGroup = new THREE.Group();
+      reticleGroup.position.copy(targetPos);
+      reticleGroup.lookAt(targetPos.clone().multiplyScalar(2));
+
+      const colorHex = isMalicious ? 0xff3b5c : 0x00ffcc;
+
+      // Inner tactical crosshairs ring
+      const innerRingGeo = new THREE.RingGeometry(0.04, 0.05, 32);
+      const innerRingMat = new THREE.MeshBasicMaterial({ color: colorHex, side: THREE.DoubleSide });
+      const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
+      reticleGroup.add(innerRing);
+
+      // Outer targeting brackets
+      const outerRingGeo = new THREE.RingGeometry(0.085, 0.1, 4);
+      const outerRingMat = new THREE.MeshBasicMaterial({ color: colorHex, side: THREE.DoubleSide });
+      const outerRing = new THREE.Mesh(outerRingGeo, outerRingMat);
+      outerRing.rotation.z = Math.PI * 0.25;
+      reticleGroup.add(outerRing);
+
+      // Expanding Sonar Ping Ripple
+      const rippleGeo = new THREE.RingGeometry(0.03, 0.05, 32);
+      const rippleMat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.8
+      });
+      const ripple = new THREE.Mesh(rippleGeo, rippleMat);
+      reticleGroup.add(ripple);
+
+      // Vertical Recon Uplink Laser Column
+      const beamGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.65, 12);
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: 0.8
+      });
+      const beam = new THREE.Mesh(beamGeo, beamMat);
+      beam.position.z = 0.325;
+      beam.rotation.x = Math.PI * 0.5;
+      reticleGroup.add(beam);
+
+      holoGlobeMesh.add(reticleGroup);
+      holoThreatReticle = { group: reticleGroup, ripple, rippleMat, rippleScale: 1.0, innerRing, outerRing };
+    }
+
+    function resizeHoloRadar() {
+      const canvas = document.getElementById('holoRadarCanvas');
+      if (canvas && holoCamera && holoRenderer) {
+        const w = canvas.clientWidth || window.innerWidth * 0.82;
+        const h = canvas.clientHeight || window.innerHeight;
+        holoCamera.aspect = w / h;
+        holoCamera.updateProjectionMatrix();
+        holoRenderer.setSize(w, h);
+      }
+    }
+
+    function clearHoloArcs() {
+      if (!holoGlobeMesh) return;
+      holoHopArcs.forEach(item => {
+        if (item.line) holoGlobeMesh.remove(item.line);
+        if (item.packet) holoGlobeMesh.remove(item.packet);
+        if (item.markers) item.markers.forEach(m => holoGlobeMesh.remove(m));
+      });
+      holoHopArcs = [];
+    }
+
+    function addHoloHopArc(startLat, startLng, endLat, endLng, colorHex) {
+      if (!holoGlobeMesh) return;
+      const r = 1.65;
+      const p1 = latLngToVec3(startLat, startLng, r);
+      const p2 = latLngToVec3(endLat, endLng, r);
+      const dist = p1.distanceTo(p2);
+      const mid = p1.clone().add(p2).multiplyScalar(0.5);
+      mid.normalize().multiplyScalar(r + Math.min(dist * 0.45, 1.25));
+
+      const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
+      const pts = curve.getPoints(50);
+      const arcGeo = new THREE.BufferGeometry().setFromPoints(pts);
+      const arcMat = new THREE.LineBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: 0.85,
+        linewidth: 2
+      });
+      const arcLine = new THREE.Line(arcGeo, arcMat);
+      holoGlobeMesh.add(arcLine);
+
+      const packet = new THREE.Mesh(
+        new THREE.SphereGeometry(0.045, 12, 12),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      holoGlobeMesh.add(packet);
+
+      const markers = [];
+      [p1, p2].forEach((p, idx) => {
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(0.02, 0.08, 16),
+          new THREE.MeshBasicMaterial({
+            color: idx === 0 ? colorHex : 0x00ffcc,
+            side: THREE.DoubleSide
+          })
+        );
+        ring.position.copy(p.clone().multiplyScalar(1.01));
+        ring.lookAt(p.clone().multiplyScalar(2));
+        holoGlobeMesh.add(ring);
+        markers.push(ring);
+      });
+
+      holoHopArcs.push({ curve, packet, line: arcLine, markers, progress: Math.random() });
+    }
+
+    function populateHoloRadarData() {
+      clearHoloArcs();
+
+      const origin = typeof lastThreatOrigin !== 'undefined' ? lastThreatOrigin : null;
+      const report = typeof currentForensicReport !== 'undefined' ? currentForensicReport : null;
+      const threatScore = report ? (report.fraud_score || 0) : (origin ? 85 : 15);
+      const isMalicious = threatScore >= 60;
+      const arcColor = isMalicious ? 0xff3b5c : 0x00ffcc;
+
+      const ipVal = document.getElementById('holoIpVal');
+      const geoVal = document.getElementById('holoGeoVal');
+      const coordsVal = document.getElementById('holoCoordsVal');
+      const ispVal = document.getElementById('holoIspVal');
+      const hopsCountVal = document.getElementById('holoHopsCountVal');
+      const riskBadge = document.getElementById('holoRiskBadge');
+
+      let originLat = 50.1109, originLng = 8.6821;
+      let originCity = "Frankfurt", originCountry = "Germany", originIp = "185.220.101.5", originIsp = "Tor Exit Node";
+
+      if (origin && !isNaN(origin.lat) && !isNaN(origin.lng)) {
+        originLat = origin.lat;
+        originLng = origin.lng;
+        originCity = origin.city || "Detected City";
+        originCountry = origin.country || "Detected Region";
+        originIp = origin.ip || "Origin Host";
+        originIsp = origin.org || "Network Authority";
+      }
+
+      holoLastThreatLat = originLat;
+      holoLastThreatLng = originLng;
+
+      if (ipVal) ipVal.textContent = originIp;
+      if (geoVal) geoVal.textContent = `${originCity}, ${originCountry}`;
+      if (coordsVal) coordsVal.textContent = `${originLat.toFixed(2)}° N, ${originLng.toFixed(2)}° E`;
+      if (ispVal) ispVal.textContent = originIsp;
+      if (hopsCountVal) hopsCountVal.textContent = report ? `${report.headers?.hops || 3} Relay Hops` : '3 Relay Hops';
+
+      if (riskBadge) {
+        if (isMalicious) {
+          riskBadge.textContent = "LETHAL THREAT LOCK";
+          riskBadge.className = "px-2 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-300 border border-red-500/40 animate-pulse";
+        } else {
+          riskBadge.textContent = "SURVEILLANCE OK";
+          riskBadge.className = "px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40";
+        }
+      }
+
+      // God's Eye Target Acquisition Reticle on Surface
+      createThreatReticle(originLat, originLng, isMalicious);
+
+      // Gateway Relay Arc
+      const gatewayLat = 20.5937, gatewayLng = 78.9629;
+      addHoloHopArc(originLat, originLng, gatewayLat, gatewayLng, arcColor);
+
+      // Populate Timeline
+      const hopsTimeline = document.getElementById('holoHopsTimeline');
+      if (hopsTimeline) {
+        hopsTimeline.innerHTML = '';
+        
+        const hop1 = document.createElement('div');
+        hop1.className = "p-2.5 rounded-xl bg-white/5 border border-cyan-500/30 hover:border-cyan-400 cursor-pointer transition";
+        hop1.onclick = () => focusHoloNode(originLat, originLng);
+        hop1.innerHTML = `
+          <div class="flex justify-between text-[10px] text-cyan-300 font-bold">
+            <span>ORIGIN TARGET INTERCEPT</span>
+            <span>${originIp}</span>
+          </div>
+          <div class="text-[11px] text-slate-300 mt-0.5">${originCity}, ${originCountry}</div>
+        `;
+        hopsTimeline.appendChild(hop1);
+
+        const hop2 = document.createElement('div');
+        hop2.className = "p-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-400 cursor-pointer transition";
+        hop2.onclick = () => focusHoloNode(gatewayLat, gatewayLng);
+        hop2.innerHTML = `
+          <div class="flex justify-between text-[10px] text-emerald-400 font-bold">
+            <span>DEFENSE GATEWAY (INBOX)</span>
+            <span>Secure MX Receiver</span>
+          </div>
+          <div class="text-[11px] text-slate-400 mt-0.5">Corporate Defense Node • 20.59° N, 78.96° E</div>
+        `;
+        hopsTimeline.appendChild(hop2);
+      }
+
+      focusGodsEyeLock();
+    }
+
+    function focusHoloNode(lat, lng) {
+      if (!holoGlobeMesh) return;
+      const targetVec = latLngToVec3(lat, lng, 1.65);
+      holoGlobeMesh.rotation.y = -Math.atan2(targetVec.x, targetVec.z);
+      holoGlobeMesh.rotation.x = Math.asin(targetVec.y / 1.65);
+    }
+
+    function focusGodsEyeLock() {
+      if (holoLastThreatLat !== null && holoLastThreatLng !== null) {
+        focusHoloNode(holoLastThreatLat, holoLastThreatLng);
+        holoTargetCamDist = 2.45; // Close-in Satellite Reconnaissance Zoom
+      }
+    }
+
+    function toggleReconZoom() {
+      if (holoTargetCamDist < 3.2) {
+        holoTargetCamDist = 4.8; // Wide Global View
+      } else {
+        holoTargetCamDist = 2.45; // Satellite Recon Zoom
+      }
+    }
+
+    function toggleClouds() {
+      holoShowClouds = !holoShowClouds;
+      if (holoCloudsMesh) holoCloudsMesh.visible = holoShowClouds;
+      const btn = document.getElementById('holoCloudBtn');
+      if (btn) btn.textContent = holoShowClouds ? '☁️ Clouds: ON' : '☁️ Clouds: OFF';
+    }
+
+    function toggleNightLights() {
+      if (!holoEarthMesh) return;
+      holoNightLightsIntensity = holoNightLightsIntensity > 0.3 ? 0.0 : 0.95;
+      holoEarthMesh.material.emissiveIntensity = holoNightLightsIntensity;
+      const btn = document.getElementById('holoNightBtn');
+      if (btn) btn.textContent = holoNightLightsIntensity > 0 ? '🌓 Night: ON' : '🌓 Night: OFF';
+    }
+
+    function toggleHoloOrbit() {
+      holoAutoRotate = !holoAutoRotate;
+      const btn = document.getElementById('holoOrbitBtn');
+      if (btn) btn.textContent = holoAutoRotate ? '⟳ Orbit: ON' : '⟳ Orbit: OFF';
+    }
+
+    function openHoloRadarSlide() {
+      const modal = document.getElementById('holoRadarModal');
+      const backdrop = document.getElementById('holoRadarBackdrop');
+      const panel = document.getElementById('holoRadarPanel');
+      if (!modal || !panel) return;
+
+      modal.style.pointerEvents = 'auto';
+      backdrop.classList.add('active');
+      panel.classList.add('active');
+
+      holoRadarActive = true;
+      initHoloRadarThree();
+      resizeHoloRadar();
+      populateHoloRadarData();
+
+      if (!holoAnimFrameId) {
+        holoRenderTick();
+      }
+    }
+
+    function closeHoloRadarSlide() {
+      const modal = document.getElementById('holoRadarModal');
+      const backdrop = document.getElementById('holoRadarBackdrop');
+      const panel = document.getElementById('holoRadarPanel');
+      if (!panel) return;
+
+      backdrop.classList.remove('active');
+      panel.classList.remove('active');
+      if (modal) modal.style.pointerEvents = 'none';
+
+      holoRadarActive = false;
+      if (holoAnimFrameId) {
+        cancelAnimationFrame(holoAnimFrameId);
+        holoAnimFrameId = null;
+      }
+    }
+
+    let holoFpsCount = 0, holoLastFpsTime = performance.now();
+    function holoRenderTick() {
+      if (!holoRadarActive) {
+        holoAnimFrameId = null;
+        return; // Complete Sleep State (0% CPU/GPU)
+      }
+
+      holoAnimFrameId = requestAnimationFrame(holoRenderTick);
+
+      // Smooth camera distance interpolation (Zoom in / out)
+      holoCurrentCamDist += (holoTargetCamDist - holoCurrentCamDist) * 0.08;
+      if (holoCamera) holoCamera.position.z = holoCurrentCamDist;
+
+      // Earth Planetary Orbit
+      if (holoGlobeMesh && holoAutoRotate && !holoMouse.isDragging) {
+        holoGlobeMesh.rotation.y += 0.0016;
+      }
+
+      // Dynamic Cloud Drift
+      if (holoCloudsMesh) {
+        holoCloudsMesh.rotation.y += 0.00035;
+      }
+
+      // Orbital Satellites Motion
+      holoSatellites.forEach(sat => {
+        sat.progress = (sat.progress + sat.speed) % 1.0;
+        const p2 = sat.curve.getPoint(sat.progress);
+        const p3 = new THREE.Vector3(p2.x, 0, p2.y);
+        p3.applyAxisAngle(new THREE.Vector3(1, 0, 0), sat.tiltX);
+        p3.applyAxisAngle(new THREE.Vector3(0, 0, 1), sat.tiltZ);
+        sat.satGroup.position.copy(p3);
+        sat.satGroup.lookAt(0, 0, 0);
+      });
+
+      // Target Reticle Animations (Rotating crosshairs & expanding sonar pulse)
+      if (holoThreatReticle) {
+        holoThreatReticle.innerRing.rotation.z += 0.025;
+        holoThreatReticle.outerRing.rotation.z -= 0.015;
+        holoThreatReticle.rippleScale += 0.045;
+        if (holoThreatReticle.rippleScale > 4.5) {
+          holoThreatReticle.rippleScale = 1.0;
+        }
+        holoThreatReticle.ripple.scale.set(holoThreatReticle.rippleScale, holoThreatReticle.rippleScale, 1.0);
+        holoThreatReticle.rippleMat.opacity = Math.max(0, 1.0 - (holoThreatReticle.rippleScale / 4.5));
+      }
+
+      // Animate hop packets along Bézier paths
+      holoHopArcs.forEach(item => {
+        item.progress = (item.progress + 0.009) % 1.0;
+        const pos = item.curve.getPoint(item.progress);
+        item.packet.position.copy(pos);
+      });
+
+      if (holoRenderer && holoScene && holoCamera) {
+        holoRenderer.render(holoScene, holoCamera);
+      }
+
+      // FPS tracking
+      holoFpsCount++;
+      const now = performance.now();
+      if (now - holoLastFpsTime >= 1000) {
+        const fpsVal = Math.round((holoFpsCount * 1000) / (now - holoLastFpsTime));
+        const fpsElem = document.getElementById('holoFpsText');
+        if (fpsElem) fpsElem.textContent = `${fpsVal} FPS`;
+        holoFpsCount = 0;
+        holoLastFpsTime = now;
+      }
+    }
+
+    // Global ESC key listener to dismiss 3D radar
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && holoRadarActive) {
+        closeHoloRadarSlide();
+      }
+    });
   </script>
+
+  <!-- =========================================================================
+       "GOD'S EYE" // DEDICATED PHOTOREALISTIC EARTH RECONNAISSANCE STAGE
+       ========================================================================= -->
+  <div id="holoRadarModal" class="fixed inset-0 z-[120] pointer-events-none flex justify-end" style="pointer-events: none;">
+    <!-- Frosted Backdrop Blur -->
+    <div id="holoRadarBackdrop" onclick="closeHoloRadarSlide()" class="fixed inset-0 bg-black/85 backdrop-blur-2xl"></div>
+
+    <!-- Main 3D Stage Panel -->
+    <div id="holoRadarPanel" class="relative z-10 w-full lg:w-[88vw] xl:w-[82vw] h-full bg-gradient-to-br from-[#060a15] via-[#030509] to-[#0a1020] border-l border-cyan-500/30 flex flex-col shadow-2xl shadow-cyan-950/60 overflow-hidden">
+      
+      <!-- Top HUD Header -->
+      <div class="px-6 py-4 border-b border-white/10 flex flex-wrap items-center justify-between gap-4 bg-black/50 backdrop-blur-2xl z-20">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 text-lg shadow-lg shadow-cyan-500/20">
+            <i class="fa-solid fa-eye text-cyan-400 animate-pulse"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-base font-bold tracking-wide text-white font-mono flex items-center gap-1.5">
+                GOD'S EYE // GLOBAL SURVEILLANCE
+              </span>
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                ORBITAL SIGINT SENSORS
+              </span>
+            </div>
+            <p id="holoHeaderSubtitle" class="text-xs opacity-60 font-mono">Photorealistic Earth Reconnaissance • Keyhole Satellite Intercept</p>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" onclick="focusGodsEyeLock()" id="holoLockBtn" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-950/60 to-black hover:from-red-900/80 text-red-300 border border-red-500/40 text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer shadow-lg shadow-red-950/40">
+            🎯 God's Eye Lock
+          </button>
+          <button type="button" onclick="toggleReconZoom()" id="holoZoomBtn" class="px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black text-cyan-300 border border-cyan-500/30 text-xs font-mono transition flex items-center gap-1.5 cursor-pointer">
+            🔍 Recon Zoom
+          </button>
+          <button type="button" onclick="toggleClouds()" id="holoCloudBtn" class="px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black text-slate-300 border border-white/20 text-xs font-mono transition flex items-center gap-1.5 cursor-pointer">
+            ☁️ Clouds: ON
+          </button>
+          <button type="button" onclick="toggleNightLights()" id="holoNightBtn" class="px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black text-amber-300 border border-amber-500/30 text-xs font-mono transition flex items-center gap-1.5 cursor-pointer">
+            🌓 Night: ON
+          </button>
+          <button type="button" onclick="toggleHoloOrbit()" id="holoOrbitBtn" class="px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black text-cyan-300 border border-cyan-500/30 text-xs font-mono transition flex items-center gap-1.5 cursor-pointer">
+            ⟳ Orbit: ON
+          </button>
+          <button type="button" onclick="closeHoloRadarSlide()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/40 text-red-300 border border-red-500/40 text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer ml-1">
+            <i class="fa-solid fa-xmark"></i> Close [ESC]
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Stage Body (Canvas + Floating Telemetry Panels) -->
+      <div class="relative flex-1 w-full h-full overflow-hidden">
+        <!-- Three.js Canvas Container -->
+        <canvas id="holoRadarCanvas" class="absolute inset-0 w-full h-full z-0 cursor-grab active:cursor-grabbing"></canvas>
+
+        <!-- Floating Left Telemetry Panel -->
+        <div class="absolute top-6 left-6 z-10 w-80 max-w-[calc(100vw-3rem)] pointer-events-auto space-y-3">
+          <div class="glass rounded-2xl p-4 border border-cyan-500/30 bg-black/80 backdrop-blur-2xl shadow-2xl shadow-black/90">
+            <div class="flex items-center justify-between text-[11px] font-mono text-cyan-400 mb-2 border-b border-white/10 pb-2">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                GOD'S EYE TARGET SENSOR
+              </span>
+              <span id="holoRiskBadge" class="px-2 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-300 border border-red-500/40 animate-pulse">LOCK ACQUIRED</span>
+            </div>
+            
+            <div class="space-y-1.5 text-xs font-mono">
+              <div class="flex justify-between border-b border-white/5 pb-1">
+                <span class="opacity-50">Origin Target IP:</span>
+                <span id="holoIpVal" class="text-white font-bold">185.220.101.5</span>
+              </div>
+              <div class="flex justify-between border-b border-white/5 pb-1">
+                <span class="opacity-50">Geopolitical Region:</span>
+                <span id="holoGeoVal" class="text-cyan-300 font-bold">Frankfurt, Germany</span>
+              </div>
+              <div class="flex justify-between border-b border-white/5 pb-1">
+                <span class="opacity-50">Target Coordinates:</span>
+                <span id="holoCoordsVal" class="text-amber-300">50.11° N, 8.68° E</span>
+              </div>
+              <div class="flex justify-between border-b border-white/5 pb-1">
+                <span class="opacity-50">Routing Authority:</span>
+                <span id="holoIspVal" class="text-slate-300 truncate max-w-[150px]">Tor Exit Node</span>
+              </div>
+              <div class="flex justify-between border-b border-white/5 pb-1">
+                <span class="opacity-50">Satellite Uplink:</span>
+                <span class="text-emerald-400 font-semibold">KH-11 Ku-Band Intercept</span>
+              </div>
+              <div class="flex justify-between pt-0.5">
+                <span class="opacity-50">Intercepted Hops:</span>
+                <span id="holoHopsCountVal" class="text-cyan-400 font-bold">4 Relay Hops</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Controls in 3D Mode -->
+          <div class="glass rounded-2xl p-3 border border-white/10 bg-black/70 backdrop-blur-md text-[11px] font-mono text-slate-400 flex items-center justify-between">
+            <span>🖱️ Drag to rotate</span>
+            <span>🔍 Scroll to zoom</span>
+            <span class="text-cyan-400 font-bold">👁️ God's Eye Active</span>
+          </div>
+        </div>
+
+        <!-- Floating Right Relay Hops Timeline -->
+        <div class="absolute top-6 right-6 z-10 w-80 max-w-[calc(100vw-3rem)] pointer-events-auto">
+          <div class="glass rounded-2xl p-4 border border-cyan-500/30 bg-black/80 backdrop-blur-2xl shadow-2xl shadow-black/90 max-h-[70vh] flex flex-col">
+            <div class="flex items-center justify-between text-[11px] font-mono text-cyan-400 pb-2 border-b border-white/10 mb-2">
+              <span class="flex items-center gap-1.5">
+                <i class="fa-solid fa-satellite-dish text-cyan-400"></i>
+                INTERCEPTED FLIGHT PATHS
+              </span>
+              <span class="text-[9px] opacity-60">CLICK TO ORBIT</span>
+            </div>
+
+            <div id="holoHopsTimeline" class="space-y-2 overflow-y-auto pr-1 text-xs font-mono">
+              <div class="p-2.5 rounded-xl bg-white/5 border border-cyan-500/30 hover:border-cyan-400 cursor-pointer transition">
+                <div class="flex justify-between text-[10px] text-cyan-300 font-bold">
+                  <span>HOP #1 (ORIGIN HOST)</span>
+                  <span>185.220.101.5</span>
+                </div>
+                <div class="text-[11px] text-slate-300 mt-0.5">Frankfurt, Germany • Tor Exit Relays</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Telemetry Bar -->
+        <div class="absolute bottom-4 left-6 right-6 z-10 pointer-events-none flex justify-between items-center text-[11px] font-mono text-slate-400">
+          <div class="stats-card pointer-events-auto flex items-center gap-3">
+            <span>SURVEILLANCE STATUS: <span id="holoStatusText" class="text-emerald-400 font-bold">GOD'S EYE ORBITAL GRID LOCKED</span></span>
+            <span class="opacity-30">|</span>
+            <span>FPS: <span id="holoFpsText" class="text-cyan-300 font-bold">60 FPS</span></span>
+            <span class="opacity-30">|</span>
+            <span class="text-[10px] text-slate-400">ENCRYPTION: AES-256-GCM SATELLITE FEED</span>
+          </div>
+          <div class="text-[10px] opacity-50">
+            PRESS [ESC] OR CLICK BACKDROP TO DISMISS
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
