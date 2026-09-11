@@ -11,12 +11,36 @@ import random
 from pathlib import Path
 from typing import List, Dict, Any
 
-VENDORS = ["Apex Lab Supplies", "Northwind Logistics", "Contoso Hardware", "Global Cloud Services", "Precision Machining Inc", "Acme IT Solutions", "CyberRange Partners", "Stripe Billing Services"]
-EXECUTIVES = ["CEO", "Chief Financial Officer", "Managing Director", "VP of Engineering", "Chief Executive Officer", "Executive Director"]
-BANKS = ["Standard Chartered", "Barclays Corporate", "JPMorgan Chase Commercial", "Wells Fargo", "Deutsche Bank", "State Bank Enterprise"]
-EMPLOYEES = ["Alex Rivera", "Sarah Chen", "Marcus Vance", "Elena Rostova", "David Kim", "Priya Sharma", "Michael Scott", "Rachel Green"]
-PROJECTS = ["Smart India Hackathon", "Q3 Infrastructure Migration", "SOC 2 Type II Compliance", "ERP Upgrade", "Firewall Rule Review", "Penetration Testing Scope"]
-SERVICES = ["Microsoft 365", "Google Workspace", "DocuSign", "Dropbox Enterprise", "Slack Technologies", "Okta Identity", "GitHub Enterprise", "Zoom Video"]
+VENDORS = [
+    "Apex Lab Supplies", "Northwind Logistics", "Contoso Hardware", "Global Cloud Services",
+    "Precision Machining Inc", "Acme IT Solutions", "CyberRange Partners", "Stripe Billing Services",
+    "Cloudflare Infrastructure", "Datadog Telemetry", "Twilio Messaging", "Snowflake Data Corp"
+]
+EXECUTIVES = [
+    "CEO", "Chief Financial Officer", "Managing Director", "VP of Engineering",
+    "Chief Executive Officer", "Executive Director", "Chief Information Security Officer", "General Counsel"
+]
+BANKS = [
+    "Standard Chartered", "Barclays Corporate", "JPMorgan Chase Commercial", "Wells Fargo",
+    "Deutsche Bank", "State Bank Enterprise", "Citibank NA", "Silicon Valley Bank Private", "HSBC Commercial"
+]
+EMPLOYEES = [
+    "Alex Rivera", "Sarah Chen", "Marcus Vance", "Elena Rostova",
+    "David Kim", "Priya Sharma", "Michael Scott", "Rachel Green",
+    "Vikram Patel", "Ananya Rao", "Lucas Meyer", "Chloe Dupont"
+]
+PROJECTS = [
+    "Smart India Hackathon", "Q3 Infrastructure Migration", "SOC 2 Type II Compliance", "ERP Upgrade",
+    "Firewall Rule Review", "Penetration Testing Scope", "Cloud Security Posture Audit", "Zero Trust Architecture"
+]
+SERVICES = [
+    "Microsoft 365", "Google Workspace", "DocuSign", "Dropbox Enterprise",
+    "Slack Technologies", "Okta Identity", "GitHub Enterprise", "Zoom Video",
+    "AWS Management Console", "PagerDuty Incident Command", "Atlassian Jira", "Workday HR"
+]
+UNIVERSITIES = [
+    "IIT Madras", "NPTEL Online Courses", "SWAYAM Portal", "National Cyber Institute", "Engineering Faculty"
+]
 
 LEGITIMATE_TEMPLATES = [
     "Hi team, here are the minutes from today's project review meeting regarding {project}. Please review the attached slide deck.",
@@ -33,7 +57,16 @@ LEGITIMATE_TEMPLATES = [
     "Campus placement orientation schedule is now published. Students with eligibility criteria can check their portal.",
     "Attached is the signed non-disclosure agreement for the upcoming collaborative research initiative with {vendor}.",
     "Invoice receipt #{inv}: Your payment to {service} has been received. Thank you for your continued partnership.",
-    "Security briefing: Please ensure all corporate laptops have the latest OS patch installed by Friday evening."
+    "Security briefing: Please ensure all corporate laptops have the latest OS patch installed by Friday evening.",
+    "Course Notification from {university}: Assignment #{assn} for Cloud Computing & Forensics is now active. Due date: Friday 23:59 IST.",
+    "[GitHub] Automated Dependabot security advisory for repository '{project}': Zero vulnerabilities detected in current release.",
+    "AWS Monthly Billing Notification: Your estimated charges for account #{acct} are currently ${amount}. View breakdown in Cost Explorer.",
+    "Engineering Standup Notes: Sprint 42 retrospective concluded. Key deliverables: IPv6 relay unrolling and GeoINT radar optimization.",
+    "Datadog Alert Resolved: Host cluster latency in ap-south-1 has recovered to baseline (average 18ms). No user impact observed.",
+    "Office facilities notice: Fire drill simulation scheduled for Wednesday at 14:00. Please follow stairwell warden guidelines.",
+    "Travel Reimbursement Approved: Expense report #{inv} for {employee} (${amount}) has been signed off by management and scheduled for payout.",
+    "IEEE Student Branch Workshop: Hands-on reverse engineering and vulnerability assessment session this Saturday at 11:00 AM.",
+    "Vendor Contract Renewal: Annual support subscription for {vendor} is renewed through Q4. Retain this invoice copy for records."
 ]
 
 PHISHING_TEMPLATES = [
@@ -46,9 +79,15 @@ PHISHING_TEMPLATES = [
     "Your incoming parcel delivery failed due to incorrect address information. Pay a $2.50 redelivery fee and confirm your identity at http://courier-tracking-redeliver.click",
     "Notice from Human Resources: Please review the updated mandatory employee conduct policy by signing into the employee portal: http://hr-portal-review.monster",
     "Immediate Action Required: Your access to {service} enterprise portal has been suspended due to suspicious activity. Verify credentials to restore access.",
-    "DocuSign: {employee} sent you a document for urgent electronic signature. Click here to review and authenticate your corporate identity.",
+    "DocuSign: {employee} sent you a document for urgent electronic signature. Click here to review and authenticate your corporate identity: http://docusign-secure-document-sign.icu",
     "Zoom Meeting: Missed voice memo from your manager. Log in with your office credentials to play audio recording: http://voicemail-portal-listen.rest",
-    "Tax refund notice: You have an unclaimed federal refund of ${amount}. Submit your identification card and account credentials to receive transfer."
+    "Tax refund notice: You have an unclaimed federal refund of ${amount}. Submit your identification card and account credentials to receive transfer.",
+    "Cloud Security Alert: Metadata SSRF probe detected. Authorize immediate security probe at http://169.254.169.254.nip.io/meta-data to maintain compliance.",
+    "Okta SSO Session Expired: Your single sign-on security token expired. Re-authenticate through corporate federation at http://okta-sso-verify-identity.xyz",
+    "Google Workspace Alert: {employee} shared an encrypted financial summary. Log in with Google credentials to decrypt: http://drive-google-viewer-decrypt.site",
+    "Urgent Office 365 Notice: 4 incoming emails quarantined by perimeter filter. Release messages immediately: http://mail-quarantine-release-portal.pw",
+    "Slack Identity Verification: Mandatory workspace two-factor authentication reset. Complete profile sync at http://slack-enterprise-token-verify.club",
+    "Bank Account Locked: Suspicious debit of ${amount} detected on your corporate card. Dispute transaction now: http://fraud-prevention-secure-auth.cc"
 ]
 
 BEC_TEMPLATES = [
@@ -59,10 +98,14 @@ BEC_TEMPLATES = [
     "Executive Gift Card Purchase: Are you at your desk right now? I need you to discreetly purchase 5 Apple gift cards ($100 each) for our client appreciation dinner. Scratch the back and email me the codes immediately.",
     "Confidential Wire Request: Please expedite wire transfer of ${amount} to {bank} for {vendor} consulting fees. The contract was signed off-record by the board. Keep this matter confidential until public filing.",
     "Revised Bank Details: Attached is our updated W-9 and banking details for {vendor}. Our old account at Wells Fargo is being closed. Please update your vendor master record and wire today's invoice balance immediately.",
-    "Emergency wire transfer: Hi finance team, I need an urgent international SWIFT payment sent to our overseas supplier {vendor} for ${amount}. Time sensitive, please release payment before cutoff."
+    "Emergency wire transfer: Hi finance team, I need an urgent international SWIFT payment sent to our overseas supplier {vendor} for ${amount}. Time sensitive, please release payment before cutoff.",
+    "Executive Board Authorization: Per our closed executive session this morning, release settlement payment of ${amount} to {vendor} at {bank}. Strictly confidential; do not discuss via internal Slack.",
+    "Vendor Wire Reroute: Final notice regarding invoice #{inv}. Effective immediately our accounting firm has reassigned receiving ledger to {bank}. Disburse ${amount} by 16:00 to avoid late penalties.",
+    "Confidential M&A Retainer: Please wire ${amount} retainer fee to our external merger counsel at {bank}. Retain transaction receipt and email confirmation directly to my personal address.",
+    "Urgent Discretionary Payment: Are you currently available to execute a high-priority wire? Our supplier {vendor} requires ${amount} escrow deposit before end of day. Awaiting your prompt reply."
 ]
 
-def generate_corpus(samples_per_class: int = 400) -> List[Dict[str, Any]]:
+def generate_corpus(samples_per_class: int = 1000) -> List[Dict[str, Any]]:
     dataset = []
     
     # 1. Class 0: Legitimate
@@ -73,8 +116,11 @@ def generate_corpus(samples_per_class: int = 400) -> List[Dict[str, Any]]:
             vendor=random.choice(VENDORS),
             service=random.choice(SERVICES),
             employee=random.choice(EMPLOYEES),
-            amount=random.randint(150, 4500),
-            inv=random.randint(10000, 99999)
+            university=random.choice(UNIVERSITIES),
+            amount=random.randint(15, 4500),
+            inv=random.randint(10000, 99999),
+            assn=random.randint(1, 10),
+            acct=random.randint(100000000, 999999999)
         )
         dataset.append({
             "id": f"LEGIT_{i:04d}",
@@ -92,7 +138,7 @@ def generate_corpus(samples_per_class: int = 400) -> List[Dict[str, Any]]:
             service_slug=service.lower().replace(" ", "-"),
             employee=random.choice(EMPLOYEES),
             pct=random.randint(95, 99),
-            amount=random.randint(250, 1500)
+            amount=random.randint(250, 2500)
         )
         dataset.append({
             "id": f"PHISH_{i:04d}",
@@ -109,7 +155,7 @@ def generate_corpus(samples_per_class: int = 400) -> List[Dict[str, Any]]:
             vendor=vendor,
             bank=random.choice(BANKS),
             exec=random.choice(EXECUTIVES),
-            amount=random.randint(8500, 150000),
+            amount=random.randint(8500, 250000),
             inv=random.randint(10000, 99999)
         )
         dataset.append({
@@ -128,7 +174,7 @@ if __name__ == "__main__":
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / "threat_corpus_1200.jsonl"
     
-    corpus = generate_corpus(samples_per_class=400)
+    corpus = generate_corpus(samples_per_class=1000)
     with open(out_file, "w", encoding="utf-8") as f:
         for item in corpus:
             f.write(json.dumps(item) + "\n")

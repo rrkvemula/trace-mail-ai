@@ -1,55 +1,70 @@
 {
-  "model_type": "TF-IDF + Calibrated Logistic Regression",
-  "accuracy": 1.0,
+  "champion_model": "Calibrated Logistic Regression",
+  "test_accuracy": 1.0,
+  "test_macro_f1": 1.0,
+  "tournament_results": {
+    "Calibrated Logistic Regression": {
+      "mean_f1": 1.0,
+      "std_f1": 0.0
+    },
+    "Complement Naive Bayes": {
+      "mean_f1": 1.0,
+      "std_f1": 0.0
+    },
+    "Random Forest Ensemble": {
+      "mean_f1": 1.0,
+      "std_f1": 0.0
+    }
+  },
   "classes": [
     "LEGITIMATE",
     "PHISHING",
     "BEC_FRAUD"
   ],
-  "num_features": 2129,
-  "num_samples": 1245,
+  "num_features": 2828,
+  "num_samples": 3045,
   "top_class_indicators": {
     "legitimate": [
       "the",
+      "for",
       "is",
+      "friday",
+      "scheduled",
+      "scheduled for",
       "next",
+      "monthly",
       "campus",
       "review",
-      "hr",
       "for your",
-      "00",
-      "main",
-      "the main",
-      "network",
-      "all"
+      "approved"
     ],
     "phishing": [
       "http",
       "your",
-      "credentials",
       "at http",
+      "credentials",
       "your corporate",
       "credentials to",
       "identity",
-      "verify",
-      "refund",
-      "document",
-      "employee",
-      "click"
+      "alert",
+      "in with",
+      "incoming",
+      "corporate",
+      "verify"
     ],
     "bec_fraud": [
       "our",
       "wire",
-      "my",
-      "wire transfer",
       "confidential",
+      "my",
+      "executive",
       "to our",
-      "transfer",
+      "to",
+      "payment",
       "please",
+      "of",
       "immediately",
-      "need",
-      "account at",
-      "bank"
+      "transfer"
     ]
   }
 }

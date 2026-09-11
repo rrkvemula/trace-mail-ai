@@ -14,7 +14,9 @@ from pathlib import Path
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.naive_bayes import ComplementNB
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, f1_score
 
 import sys
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -96,24 +98,42 @@ def train():
     X_test = vectorizer.transform(X_test_raw)
     print(f"Vocabulary size: {len(vectorizer.vocabulary_)} features")
 
-    print("\n--- 2. Training Classifier ---")
-    clf = LogisticRegression(
-        C=3.0,
-        max_iter=1000,
-        class_weight="balanced",
-        solver="lbfgs",
-        random_state=42
-    )
-    
-    cv_scores = cross_val_score(clf, X_train, y_train, cv=5, scoring="accuracy")
-    print(f"5-Fold Cross-Validation Accuracy: {cv_scores.mean():.4f} (+/- {cv_scores.std():.4f})")
+    print("\n--- 2. Model Architecture Tournament (5-Fold Stratified CV) ---")
+    candidates = {
+        "Calibrated Logistic Regression": LogisticRegression(
+            C=3.0, max_iter=1000, class_weight="balanced", solver="lbfgs", random_state=42
+        ),
+        "Complement Naive Bayes": ComplementNB(alpha=0.4, norm=True),
+        "Random Forest Ensemble": RandomForestClassifier(
+            n_estimators=100, max_depth=30, random_state=42, n_jobs=-1
+        )
+    }
 
-    clf.fit(X_train, y_train)
+    results = {}
+    best_score = -1.0
+    champion_name = None
+    champion_model = None
 
-    print("\n--- 3. Test Set Evaluation ---")
-    y_pred = clf.predict(X_test)
+    for name, model in candidates.items():
+        scores = cross_val_score(model, X_train, y_train, cv=5, scoring="f1_macro")
+        mean_f1 = float(scores.mean())
+        std_f1 = float(scores.std())
+        results[name] = {"mean_f1": round(mean_f1, 4), "std_f1": round(std_f1, 4)}
+        print(f"  * {name:<32} Macro F1: {mean_f1 * 100:.2f}% (+/- {std_f1 * 100:.2f}%)")
+        if mean_f1 > best_score:
+            best_score = mean_f1
+            champion_name = name
+            champion_model = model
+
+    print(f"\n🏆 Champion Model Selected: {champion_name} (Macro F1: {best_score * 100:.2f}%)")
+
+    champion_model.fit(X_train, y_train)
+
+    print("\n--- 3. Holdout Test Set Evaluation ---")
+    y_pred = champion_model.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
-    print(f"Holdout Test Accuracy: {acc * 100:.2f}%\n")
+    macro_f1 = f1_score(y_test, y_pred, average="macro")
+    print(f"Holdout Test Accuracy: {acc * 100:.2f}% | Macro F1: {macro_f1 * 100:.2f}%\n")
     
     class_names = ["Legitimate (0)", "Phishing (1)", "BEC / Fraud (2)"]
     print(classification_report(y_test, y_pred, target_names=class_names, digits=4))
@@ -123,23 +143,32 @@ def train():
     # Compute top indicative n-grams per class
     feature_names = np.array(vectorizer.get_feature_names_out())
     top_indicators = {}
-    for idx, name in enumerate(["legitimate", "phishing", "bec_fraud"]):
-        coefs = clf.coef_[idx]
-        top_indices = np.argsort(coefs)[-12:][::-1]
-        top_indicators[name] = feature_names[top_indices].tolist()
-        print(f"\nTop forensic markers for {name.upper()}: {top_indicators[name][:6]}")
+    if hasattr(champion_model, "coef_"):
+        for idx, name in enumerate(["legitimate", "phishing", "bec_fraud"]):
+            coefs = champion_model.coef_[idx]
+            top_indices = np.argsort(coefs)[-12:][::-1]
+            top_indicators[name] = feature_names[top_indices].tolist()
+            print(f"\nTop forensic markers for {name.upper()}: {top_indicators[name][:6]}")
+    elif hasattr(champion_model, "feature_log_prob_"):
+        for idx, name in enumerate(["legitimate", "phishing", "bec_fraud"]):
+            probs = champion_model.feature_log_prob_[idx]
+            top_indices = np.argsort(probs)[-12:][::-1]
+            top_indicators[name] = feature_names[top_indices].tolist()
+            print(f"\nTop forensic markers for {name.upper()}: {top_indicators[name][:6]}")
 
-    print("\n--- 4. Serializing Model Artifacts ---")
+    print("\n--- 4. Serializing Champion Model Artifacts ---")
     clf_path = MODELS_DIR / "threat_classifier.joblib"
     vec_path = MODELS_DIR / "tfidf_vectorizer.joblib"
     meta_path = MODELS_DIR / "model_metadata.json"
 
-    joblib.dump(clf, clf_path, compress=3)
+    joblib.dump(champion_model, clf_path, compress=3)
     joblib.dump(vectorizer, vec_path, compress=3)
 
     metadata = {
-        "model_type": "TF-IDF + Calibrated Logistic Regression",
-        "accuracy": round(float(acc), 4),
+        "champion_model": champion_name,
+        "test_accuracy": round(float(acc), 4),
+        "test_macro_f1": round(float(macro_f1), 4),
+        "tournament_results": results,
         "classes": ["LEGITIMATE", "PHISHING", "BEC_FRAUD"],
         "num_features": len(vectorizer.vocabulary_),
         "num_samples": len(texts),
