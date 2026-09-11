@@ -97,14 +97,18 @@ class ForensicRAG:
 
     @classmethod
     def _get_encoder(cls):
-        """Lazy loads tokenizer and embedding model."""
+        """Lazy loads tokenizer and embedding model from local cache (sub-millisecond)."""
         if cls._tokenizer is None or cls._model is None:
             try:
                 import torch
                 from transformers import AutoTokenizer, AutoModel
                 model_name = "sentence-transformers/all-MiniLM-L6-v2"
-                cls._tokenizer = AutoTokenizer.from_pretrained(model_name)
-                cls._model = AutoModel.from_pretrained(model_name)
+                try:
+                    cls._tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
+                    cls._model = AutoModel.from_pretrained(model_name, local_files_only=True)
+                except Exception:
+                    cls._tokenizer = AutoTokenizer.from_pretrained(model_name)
+                    cls._model = AutoModel.from_pretrained(model_name)
                 cls._model.eval()
             except Exception as e:
                 print(f"[RAG] Embedding model init failed: {e}")

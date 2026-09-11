@@ -42,10 +42,22 @@ MAX_CACHED_ANALYSES = 50
 ANALYSIS_CACHE = OrderedDict()
 LEDGER = EvidenceLedger(os.path.join(DATA_DIR, "evidence_ledger.jsonl"))
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        from engine.rag_engine import ForensicRAG
+        await run_in_threadpool(ForensicRAG.initialize)
+    except Exception as ex:
+        print(f"[STARTUP] ForensicRAG pre-warm notice: {ex}")
+    yield
+
 app = FastAPI(
     title="TRACE-MAIL AI Forensic Server",
     version="2.1.0",
-    description="Evidence-Based Email Threat Detection, Geolocation & Forensic Intelligence Platform"
+    description="Evidence-Based Email Threat Detection, Geolocation & Forensic Intelligence Platform",
+    lifespan=lifespan
 )
 
 @app.middleware("http")
@@ -504,7 +516,8 @@ async def copilot_chat(payload: ChatRequest):
         except Exception:
             pass
 
-    response = ForensicCopilot.query(
+    response = await run_in_threadpool(
+        ForensicCopilot.query,
         user_message=payload.message,
         report=report_context,
         history=payload.history,

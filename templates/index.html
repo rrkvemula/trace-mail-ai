@@ -248,6 +248,25 @@
     ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 999px; }
     @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
 
+    /* ARGUS-X Sentinel Chat Stream Performance & Mouse Interaction */
+    #copilotChatStream {
+      overscroll-behavior: contain;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+      cursor: grab;
+      user-select: text;
+    }
+    #copilotChatStream.is-dragging {
+      cursor: grabbing !important;
+      user-select: none !important;
+    }
+    /* Eliminate nested backdrop-filter blur re-computation during scrolling */
+    #copilotChatStream .glass {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      background-color: rgba(12, 19, 36, 0.88) !important;
+    }
+
     /* =============================================================
        DEDICATED 3D HOLOGRAPHIC HOP RADAR SLIDE-IN STAGE
        ============================================================= */
@@ -861,7 +880,7 @@
           </div>
 
           <!-- Chat Stream Container -->
-          <div id="copilotChatStream" class="glass rounded-2xl p-5 min-h-[360px] max-h-[500px] overflow-y-auto space-y-4 border border-white/10 font-sans text-sm">
+          <div id="copilotChatStream" data-lenis-prevent="true" class="glass rounded-2xl p-5 min-h-[360px] max-h-[500px] overflow-y-auto space-y-4 border border-white/10 font-sans text-sm">
             <!-- Initial Assistant Greeting -->
             <div class="flex gap-3 items-start">
               <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex-shrink-0 flex items-center justify-center text-cyan-300 text-xs">
@@ -1089,7 +1108,13 @@
           pane.classList.remove('hidden');
           pane.classList.remove('tab-slide-in-3d-right', 'tab-slide-in-3d-left');
           void pane.offsetWidth; // force DOM reflow
-          pane.classList.add(isForward ? 'tab-slide-in-3d-right' : 'tab-slide-in-3d-left');
+          const animClass = isForward ? 'tab-slide-in-3d-right' : 'tab-slide-in-3d-left';
+          pane.classList.add(animClass);
+          setTimeout(() => {
+            if (pane.id === 'tab-' + tabKey) {
+              pane.classList.remove('tab-slide-in-3d-right', 'tab-slide-in-3d-left');
+            }
+          }, 550);
         } else {
           pane.classList.add('hidden');
           pane.classList.remove('tab-slide-in-3d-right', 'tab-slide-in-3d-left');
@@ -1963,6 +1988,9 @@
         if (typeof globe.controls === 'function') {
           globe.controls().autoRotate = true;
           globe.controls().autoRotateSpeed = 0.5;
+          globe.controls().zoomSpeed = 1.8;
+          globe.controls().enableDamping = true;
+          globe.controls().dampingFactor = 0.12;
         }
 
         window.addEventListener('resize', () => {
@@ -2190,6 +2218,59 @@
       });
     }
 
+    // 7b. ARGUS Sentinel Chat Stream: Mouse Drag-to-Scroll, Proximity Hover Scroll & Isolated Wheel
+    const chatStreamEl = document.getElementById('copilotChatStream');
+    if (chatStreamEl) {
+      let isChatMouseDown = false;
+      let chatStartY = 0;
+      let chatScrollTop = 0;
+
+      // 1. Mouse Drag to Scroll (Grab & Pan)
+      chatStreamEl.addEventListener('mousedown', (e) => {
+        if (e.target.closest('button, a, input, textarea, code, pre')) return;
+        isChatMouseDown = true;
+        chatStartY = e.clientY;
+        chatScrollTop = chatStreamEl.scrollTop;
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isChatMouseDown) return;
+        const deltaY = e.clientY - chatStartY;
+        if (Math.abs(deltaY) > 3) {
+          chatStreamEl.classList.add('is-dragging');
+        }
+        chatStreamEl.scrollTop = chatScrollTop - (deltaY * 1.3);
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isChatMouseDown) {
+          isChatMouseDown = false;
+          chatStreamEl.classList.remove('is-dragging');
+        }
+      });
+
+      // 2. Mouse Movement Edge Proximity Auto-Scroll
+      chatStreamEl.addEventListener('mousemove', (e) => {
+        if (isChatMouseDown) return;
+        const rect = chatStreamEl.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const h = rect.height;
+        const margin = 48; // Edge zone in pixels
+        if (y >= 0 && y < margin) {
+          const ratio = (margin - y) / margin;
+          chatStreamEl.scrollTop -= Math.ceil(ratio * 9);
+        } else if (y <= h && y > (h - margin)) {
+          const ratio = (y - (h - margin)) / margin;
+          chatStreamEl.scrollTop += Math.ceil(ratio * 9);
+        }
+      });
+
+      // 3. Isolated Wheel Scroll (prevents outer page lock / jitter)
+      chatStreamEl.addEventListener('wheel', (e) => {
+        e.stopPropagation();
+      }, { passive: true });
+    }
+
     // =========================================================================
     // "GOD'S EYE" // ARGUS-X PHOTOREALISTIC EARTH RECONNAISSANCE ENGINE (THREE.JS)
     // =========================================================================
@@ -2364,8 +2445,11 @@
       });
       canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
-        holoTargetCamDist = Math.min(Math.max(holoTargetCamDist + e.deltaY * 0.0035, 2.05), 7.5);
-      });
+        // High-sensitivity responsive zoom for both mouse wheels and precision trackpads
+        const delta = e.deltaY;
+        const zoomStep = Math.sign(delta) * Math.min(Math.max(Math.abs(delta) * 0.0085, 0.22), 0.70);
+        holoTargetCamDist = Math.min(Math.max(holoTargetCamDist + zoomStep, 1.95), 8.0);
+      }, { passive: false });
 
       window.addEventListener('resize', resizeHoloRadar);
     }
@@ -2705,8 +2789,8 @@
 
       holoAnimFrameId = requestAnimationFrame(holoRenderTick);
 
-      // Smooth camera distance interpolation (Zoom in / out)
-      holoCurrentCamDist += (holoTargetCamDist - holoCurrentCamDist) * 0.08;
+      // Snappy and smooth camera distance interpolation (increased responsiveness from 0.08 to 0.20)
+      holoCurrentCamDist += (holoTargetCamDist - holoCurrentCamDist) * 0.20;
       if (holoCamera) holoCamera.position.z = holoCurrentCamDist;
 
       // Earth Planetary Orbit
