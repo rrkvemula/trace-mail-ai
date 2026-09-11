@@ -88,12 +88,12 @@ class EvidenceGenerator:
         ledger = analysis_data.get("ledger_receipt", {})
 
         meta_table_data = [
-            [Paragraph("<b>Case Reference ID:</b>", body_style), Paragraph(case_id, code_style),
-             Paragraph("<b>Examination Date:</b>", body_style), Paragraph(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'), body_style)],
-            [Paragraph("<b>Exact submitted-byte SHA-256:</b>", body_style), Paragraph(hash_val, code_style),
-             Paragraph("<b>Threat Assessment:</b>", body_style), Paragraph(f"<b>{threat_score}/100</b> ({threat_verdict})", body_style)],
-            [Paragraph("<b>Ledger record hash:</b>", body_style), Paragraph(ledger.get("record_hash", "N/A"), code_style),
-             Paragraph("<b>ML baseline:</b>", body_style), Paragraph(f"{float(ml_data.get('phishing_probability', 0.5)) * 100:.1f}% ({ml_data.get('label', 'UNCERTAIN')})", body_style)]
+            [Paragraph("<b>Case Reference ID:</b>", body_style), Paragraph(safe(case_id), code_style),
+             Paragraph("<b>Examination Date:</b>", body_style), Paragraph(safe(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')), body_style)],
+            [Paragraph("<b>Exact submitted-byte SHA-256:</b>", body_style), Paragraph(safe(hash_val), code_style),
+             Paragraph("<b>Threat Assessment:</b>", body_style), Paragraph(f"<b>{threat_score}/100</b> ({safe(threat_verdict)})", body_style)],
+            [Paragraph("<b>Ledger record hash:</b>", body_style), Paragraph(safe(ledger.get("record_hash", "N/A")), code_style),
+             Paragraph("<b>ML baseline:</b>", body_style), Paragraph(f"{float(ml_data.get('phishing_probability', 0.5)) * 100:.1f}% ({safe(ml_data.get('label', 'UNCERTAIN'))})", body_style)]
         ]
         t_meta = Table(meta_table_data, colWidths=[115, 195, 90, 120])
         t_meta.setStyle(TableStyle([

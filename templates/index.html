@@ -39,24 +39,204 @@
       background-color: rgba(16, 26, 48, 0.85);
     }
 
-    /* Tabs & Pill Buttons - glowing pop without scale overlap */
+
+    /* Tabs & Pill Buttons - 3D tactile elevation with glowing cyber edge */
     .res-tab, .scenario-pill, .tab-btn {
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       position: relative;
+      transform-style: preserve-3d;
     }
     .res-tab:hover, .scenario-pill:hover, .tab-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px -2px rgba(6, 182, 212, 0.4);
+      transform: perspective(600px) translateY(-3px) translateZ(8px) rotateX(3deg);
+      box-shadow: 0 8px 24px -2px rgba(6, 182, 212, 0.45);
       background: rgba(6, 182, 212, 0.18) !important;
-      border-color: rgba(6, 182, 212, 0.5) !important;
+      border-color: rgba(6, 182, 212, 0.6) !important;
       color: #38bdf8 !important;
       opacity: 1 !important;
     }
     .res-tab.active {
-      background: rgba(6, 182, 212, 0.25) !important;
-      border-color: rgba(6, 182, 212, 0.6) !important;
+      transform: perspective(600px) translateY(-2px) translateZ(12px) scale(1.02);
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.35), rgba(14, 116, 144, 0.45)) !important;
+      border-color: rgba(34, 211, 238, 0.8) !important;
       color: #ffffff !important;
-      box-shadow: 0 0 16px rgba(6, 182, 212, 0.35);
+      box-shadow: 0 8px 24px -4px rgba(6, 182, 212, 0.5), 0 0 14px rgba(34, 211, 238, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    }
+    .res-tab:active {
+      transform: perspective(600px) translateY(1px) translateZ(2px) scale(0.98);
+    }
+
+    /* -------------------------------------------------------------
+       3D PERSPECTIVE & SLIDING ANIMATIONS (TABS & TEXT FILE)
+       ------------------------------------------------------------- */
+    .perspective-dock {
+      perspective: 1200px;
+      transform-style: preserve-3d;
+    }
+
+    .drop-zone-3d {
+      transform-style: preserve-3d;
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .drop-zone-3d:hover {
+      transform: perspective(800px) translateY(-3px) translateZ(12px) rotateX(4deg);
+      border-color: rgba(6, 182, 212, 0.6);
+      box-shadow: 0 12px 30px -10px rgba(6, 182, 212, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+    .drop-zone-3d.drag-over {
+      transform: perspective(800px) scale(1.02) translateZ(28px) rotateX(-3deg);
+      border-color: #22d3ee !important;
+      box-shadow: 0 0 35px rgba(6, 182, 212, 0.6), inset 0 0 20px rgba(6, 182, 212, 0.2) !important;
+      background: rgba(6, 182, 212, 0.14) !important;
+    }
+
+    .text-file-deck-3d {
+      transform-style: preserve-3d;
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease, border-color 0.35s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 3D Slide-In Keyframe for Text File / Document Cartridge */
+    @keyframes textFileSlide3DIn {
+      0% {
+        opacity: 0;
+        transform: perspective(1200px) translateY(-45px) translateZ(-130px) rotateX(25deg) scale(0.91);
+        box-shadow: 0 0 0 rgba(6, 182, 212, 0);
+        filter: blur(8px);
+      }
+      55% {
+        opacity: 0.95;
+        transform: perspective(1200px) translateY(8px) translateZ(22px) rotateX(-5deg) scale(1.018);
+        box-shadow: 0 20px 45px -8px rgba(6, 182, 212, 0.5);
+        filter: blur(0px);
+      }
+      78% {
+        transform: perspective(1200px) translateY(-3px) translateZ(6px) rotateX(2deg) scale(1.004);
+      }
+      100% {
+        opacity: 1;
+        transform: perspective(1200px) translateY(0) translateZ(0) rotateX(0deg) scale(1);
+        box-shadow: 0 8px 30px -8px rgba(6, 182, 212, 0.25);
+        filter: blur(0px);
+      }
+    }
+
+    .text-file-slide-active {
+      animation: textFileSlide3DIn 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+      will-change: transform, opacity, filter, box-shadow;
+    }
+
+    /* Holographic Laser Scanline for Text File */
+    .laser-scanner-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.8), #67e8f9, rgba(6, 182, 212, 0.8), transparent);
+      box-shadow: 0 0 15px #22d3ee, 0 0 25px #06b6d4;
+      opacity: 0;
+      z-index: 20;
+      pointer-events: none;
+    }
+    @keyframes laserSweep {
+      0% { top: 0%; opacity: 1; }
+      80% { top: 96%; opacity: 0.9; }
+      100% { top: 100%; opacity: 0; }
+    }
+    .laser-sweep-active {
+      animation: laserSweep 0.85s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+
+    /* 3D Tabs Viewport Container */
+    #resReport {
+      perspective: 1500px;
+      perspective-origin: 50% 15%;
+      transform-style: preserve-3d;
+      position: relative;
+    }
+
+    /* 3D Tabs Slide Animations (Right to Left & Left to Right) */
+    @keyframes tabSlide3DRight {
+      0% {
+        opacity: 0;
+        transform: perspective(1500px) translateX(70px) translateZ(-90px) rotateY(-14deg) rotateX(5deg) scale(0.93);
+        filter: blur(6px);
+      }
+      60% {
+        opacity: 0.95;
+        transform: perspective(1500px) translateX(-6px) translateZ(14px) rotateY(2deg) rotateX(-1deg) scale(1.008);
+        filter: blur(0px);
+      }
+      82% {
+        transform: perspective(1500px) translateX(2px) translateZ(4px) rotateY(-0.8deg) scale(1.002);
+      }
+      100% {
+        opacity: 1;
+        transform: perspective(1500px) translateX(0) translateZ(0) rotateY(0deg) rotateX(0deg) scale(1);
+        filter: blur(0px);
+      }
+    }
+
+    @keyframes tabSlide3DLeft {
+      0% {
+        opacity: 0;
+        transform: perspective(1500px) translateX(-70px) translateZ(-90px) rotateY(14deg) rotateX(5deg) scale(0.93);
+        filter: blur(6px);
+      }
+      60% {
+        opacity: 0.95;
+        transform: perspective(1500px) translateX(6px) translateZ(14px) rotateY(-2deg) rotateX(-1deg) scale(1.008);
+        filter: blur(0px);
+      }
+      82% {
+        transform: perspective(1500px) translateX(-2px) translateZ(4px) rotateY(0.8deg) scale(1.002);
+      }
+      100% {
+        opacity: 1;
+        transform: perspective(1500px) translateX(0) translateZ(0) rotateY(0deg) rotateX(0deg) scale(1);
+        filter: blur(0px);
+      }
+    }
+
+    .tab-slide-in-3d-right {
+      animation: tabSlide3DRight 0.52s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      transform-origin: center right;
+      backface-visibility: hidden;
+      will-change: transform, opacity, filter;
+    }
+
+    .tab-slide-in-3d-left {
+      animation: tabSlide3DLeft 0.52s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      transform-origin: center left;
+      backface-visibility: hidden;
+      will-change: transform, opacity, filter;
+    }
+
+    /* Staggered 3D cascade of elements inside the active tab */
+    .tab-slide-in-3d-right > *, .tab-slide-in-3d-left > * {
+      animation: subItemSlide3D 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .tab-slide-in-3d-right > *:nth-child(1), .tab-slide-in-3d-left > *:nth-child(1) { animation-delay: 0.04s; }
+    .tab-slide-in-3d-right > *:nth-child(2), .tab-slide-in-3d-left > *:nth-child(2) { animation-delay: 0.09s; }
+    .tab-slide-in-3d-right > *:nth-child(3), .tab-slide-in-3d-left > *:nth-child(3) { animation-delay: 0.14s; }
+    .tab-slide-in-3d-right > *:nth-child(4), .tab-slide-in-3d-left > *:nth-child(4) { animation-delay: 0.19s; }
+    .tab-slide-in-3d-right > *:nth-child(5), .tab-slide-in-3d-left > *:nth-child(5) { animation-delay: 0.24s; }
+
+    @keyframes subItemSlide3D {
+      0% {
+        opacity: 0;
+        transform: perspective(1000px) translateY(20px) translateZ(-35px) rotateX(8deg);
+      }
+      100% {
+        opacity: 1;
+        transform: perspective(1000px) translateY(0) translateZ(0) rotateX(0deg);
+      }
+    }
+
+    /* 3D Tab Navigation Pill Enhancement */
+    .tabs-nav-3d {
+      perspective: 800px;
+      transform-style: preserve-3d;
     }
 
     .glow { box-shadow: 0 0 40px rgba(6, 182, 212, 0.15); }
@@ -192,16 +372,43 @@
           </div>
 
           <form id="f" action="javascript:void(0);" onsubmit="runForensicScan(); return false;" class="space-y-4">
-            <label id="dropZone" class="glass rounded-2xl p-5 flex flex-col items-center justify-center border-dashed border-white/20 cursor-pointer hover:bg-white/5 transition group">
-              <i class="fa-solid fa-cloud-arrow-up text-cyan-400 text-xl mb-1 group-hover:scale-110 transition"></i>
-              <span class="text-xs opacity-70 group-hover:opacity-100 transition" id="fileLabel">Drop .eml file or click to browse</span>
-              <span class="text-[10px] opacity-30 mt-0.5">MIME • Headers • RFC 5322/7489 Invariants</span>
-              <input type="file" name="eml" id="fileInput" accept=".eml" class="hidden">
-            </label>
+            <!-- 3D Perspective File & Text Ingestion Dock -->
+            <div id="fileDock3D" class="perspective-dock space-y-3">
+              
+              <!-- 3D Dropzone Card -->
+              <label id="dropZone" class="glass rounded-2xl p-4 flex flex-col items-center justify-center border-dashed border-white/20 cursor-pointer hover:bg-white/5 transition group relative overflow-hidden drop-zone-3d">
+                <i class="fa-solid fa-cloud-arrow-up text-cyan-400 text-xl mb-1 group-hover:scale-110 group-hover:-translate-y-1 transition"></i>
+                <span class="text-xs opacity-75 group-hover:opacity-100 transition font-medium" id="fileLabel">Drop .eml / text file or click to browse</span>
+                <span class="text-[10px] opacity-35 mt-0.5 font-mono">MIME • RFC 5322 Invariants • 3D Telemetry Ingestion</span>
+                <input type="file" name="eml" id="fileInput" accept=".eml,.txt" class="hidden">
+              </label>
 
-            <div class="relative">
-              <textarea name="email_body" id="emailBody" placeholder="Or paste raw email with headers (Return-Path, Received, Authentication-Results, Subject...)" class="w-full h-36 bg-black/40 rounded-2xl p-4 text-xs font-mono border border-white/10 focus:border-cyan-400 outline-none transition leading-relaxed"></textarea>
-              <button type="button" onclick="clearForm()" class="absolute top-3 right-3 text-[10px] opacity-40 hover:opacity-100 transition">Clear</button>
+              <!-- 3D Text File Deck (Sliding 3D Document Cartridge) -->
+              <div id="textFileDeck" class="relative glass rounded-2xl p-3 border border-white/10 text-file-deck-3d transition duration-300">
+                <!-- 3D Document Header Bar -->
+                <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-[11px] font-mono select-none">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                    <i class="fa-solid fa-file-lines text-cyan-400"></i>
+                    <span class="font-bold text-cyan-300 tracking-wider">RFC 5322 TEXT STREAM</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span id="fileBadge3D" class="px-2 py-0.5 rounded-md bg-cyan-950/60 border border-cyan-500/30 text-[10px] text-cyan-300">IDLE</span>
+                    <span id="fileLineCount" class="opacity-50 text-[10px]">0 lines</span>
+                    <span id="fileByteCount" class="opacity-50 text-[10px]">0 B</span>
+                    <button type="button" onclick="clearForm()" class="text-[10px] opacity-40 hover:opacity-100 transition hover:text-red-300 ml-1" title="Clear Content">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Laser Scanline Indicator (fires on 3D slide) -->
+                <div id="laserScanline" class="laser-scanner-line pointer-events-none"></div>
+
+                <!-- Actual Text Area -->
+                <textarea name="email_body" id="emailBody" placeholder="Or paste raw email with headers (Return-Path, Received, Authentication-Results, Subject...)" class="w-full h-36 bg-black/40 rounded-xl p-3.5 text-xs font-mono border border-white/5 focus:border-cyan-400 outline-none transition leading-relaxed resize-y"></textarea>
+              </div>
+
             </div>
 
             <input name="from" id="fromInput" placeholder="Sender Override: e.g. ceo@victim-company.com" class="w-full bg-black/40 rounded-xl p-3.5 text-xs font-mono border border-white/10 focus:border-cyan-400 outline-none transition">
@@ -315,7 +522,7 @@
         </div>
 
         <!-- View Switcher Tabs -->
-        <div class="flex flex-wrap gap-1.5 glass p-1.5 rounded-2xl border border-white/10 text-xs">
+        <div class="flex flex-wrap gap-1.5 glass p-1.5 rounded-2xl border border-white/10 text-xs tabs-nav-3d backdrop-blur-xl shadow-lg shadow-black/40">
           <button onclick="switchResultTab('verdict')" class="res-tab active px-3.5 py-1.5 rounded-xl font-medium transition" data-res="verdict">Executive Verdict</button>
           <button onclick="switchResultTab('headers')" class="res-tab px-3.5 py-1.5 rounded-xl font-medium opacity-60 hover:opacity-100 transition" data-res="headers">RFC Headers</button>
           <button onclick="switchResultTab('links')" class="res-tab px-3.5 py-1.5 rounded-xl font-medium opacity-60 hover:opacity-100 transition" data-res="links">Link Sandbox</button>
@@ -457,8 +664,9 @@
               <div class="space-y-2 text-xs font-mono">
                 <div class="flex justify-between py-1.5 border-b border-white/5"><span class="opacity-50">IP Address:</span><span id="geoIpVal" class="text-white">--</span></div>
                 <div class="flex justify-between py-1.5 border-b border-white/5"><span class="opacity-50">Location:</span><span id="geoLocVal" class="text-white">--</span></div>
-                <div class="flex justify-between py-1.5 border-b border-white/5"><span class="opacity-50">Coordinates:</span><span id="geoCoordsVal" class="text-white">--</span></div>
-                <div class="flex justify-between py-1.5"><span class="opacity-50">Organization / ISP:</span><span id="geoOrgVal" class="text-white truncate max-w-[200px]">--</span></div>
+                <div class="flex justify-between py-1.5 border-b border-white/5"><span class="opacity-50">Coordinates:</span><span id="geoCoordsVal" class="text-white font-bold text-cyan-300">--</span></div>
+                <div class="flex justify-between py-1.5 border-b border-white/5"><span class="opacity-50">Organization / ISP:</span><span id="geoOrgVal" class="text-white truncate max-w-[200px]">--</span></div>
+                <div class="flex justify-between py-1.5"><span class="opacity-50">Resolution Method:</span><span id="geoSourceVal" class="text-cyan-400 font-bold truncate max-w-[220px]">--</span></div>
               </div>
             </div>
 
@@ -640,6 +848,17 @@
     let lastThreatOrigin = null;
     let globeAutoRotate = true;
 
+    // Secure HTML Sanitizer (XSS Prevention)
+    function escHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     // Globe HUD Controls
     function toggleGlobeOrbit() {
       if (!globe || typeof globe.controls !== 'function') return;
@@ -681,6 +900,52 @@
       globe.pointOfView({ lat: 20.5937, lng: 78.9629, altitude: 2.2 }, 1200);
     }
 
+    // Helper: Byte size formatter
+    function formatBytes(bytes) {
+      if (!bytes || bytes <= 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    // Helper: Update 3D Document Header Telemetry
+    function updateFileTelemetry(lines, bytes, statusText = 'READY') {
+      const lineEl = document.getElementById('fileLineCount');
+      const byteEl = document.getElementById('fileByteCount');
+      const badgeEl = document.getElementById('fileBadge3D');
+      if (lineEl) lineEl.innerText = (lines || 0) + ' lines';
+      if (byteEl) byteEl.innerText = formatBytes(bytes || 0);
+      if (badgeEl) {
+        badgeEl.innerText = statusText;
+        if (statusText === 'INGESTED' || statusText === 'STREAMING') {
+          badgeEl.className = 'px-2 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-400 text-[10px] text-cyan-300 font-bold';
+        } else {
+          badgeEl.className = 'px-2 py-0.5 rounded-md bg-cyan-950/60 border border-cyan-500/30 text-[10px] text-cyan-300';
+        }
+      }
+    }
+
+    // Helper: Trigger 3D Sliding Animation for the Text File Deck
+    function triggerTextFileSlide3D(label, byteCount, lineCount) {
+      const deck = document.getElementById('textFileDeck');
+      const scanner = document.getElementById('laserScanline');
+      updateFileTelemetry(lineCount, byteCount, 'INGESTED');
+
+      if (deck) {
+        deck.classList.remove('text-file-slide-active');
+        void deck.offsetWidth; // Force reflow
+        deck.classList.add('text-file-slide-active');
+      }
+
+      if (scanner) {
+        scanner.classList.remove('laser-sweep-active');
+        void scanner.offsetWidth;
+        scanner.classList.add('laser-sweep-active');
+        setTimeout(() => scanner.classList.remove('laser-sweep-active'), 900);
+      }
+    }
+
     // 1. Clear Console Form
     function clearForm() {
       const eb = document.getElementById('emailBody');
@@ -691,31 +956,49 @@
       if (eb) eb.value = '';
       if (fi) fi.value = '';
       if (fl) fl.value = '';
-      if (lb) lb.innerText = 'Drop .eml file or click to browse';
+      if (lb) lb.innerText = 'Drop .eml / text file or click to browse';
       if (nt) nt.classList.add('hidden');
+      updateFileTelemetry(0, 0, 'IDLE');
     }
 
-    // 2. Switch Results Tab
+    // 2. Switch Results Tab with 3D Directional Slide Animation
+    let currentTabKey = 'verdict';
+    const tabOrder = ['verdict', 'headers', 'links', 'geo', 'ioc', 'raw', 'copilot'];
+
     function switchResultTab(tabKey) {
       const emptyState = document.getElementById('resEmptyState');
       if (emptyState && tabKey === 'copilot') emptyState.classList.add('hidden');
       const repState = document.getElementById('resReport');
       if (repState && tabKey === 'copilot') repState.classList.remove('hidden');
 
+      const oldIndex = tabOrder.indexOf(currentTabKey);
+      const newIndex = tabOrder.indexOf(tabKey);
+      const isForward = newIndex >= (oldIndex !== -1 ? oldIndex : 0);
+      currentTabKey = tabKey;
+
       document.querySelectorAll('.res-tab').forEach(b => {
         b.classList.remove('active', 'bg-white', 'text-black', 'shadow');
         b.classList.add('opacity-60');
       });
-      document.querySelectorAll('#resReport > div').forEach(div => div.classList.add('hidden'));
 
       const activeBtn = document.querySelector('.res-tab[data-res="' + tabKey + '"]');
       if (activeBtn) {
-        activeBtn.classList.add('active', 'bg-white', 'text-black', 'shadow');
+        activeBtn.classList.add('active');
         activeBtn.classList.remove('opacity-60');
       }
 
-      const pane = document.getElementById('tab-' + tabKey);
-      if (pane) pane.classList.remove('hidden');
+      const allPanes = document.querySelectorAll('#resReport > [id^="tab-"]');
+      allPanes.forEach(pane => {
+        if (pane.id === 'tab-' + tabKey) {
+          pane.classList.remove('hidden');
+          pane.classList.remove('tab-slide-in-3d-right', 'tab-slide-in-3d-left');
+          void pane.offsetWidth; // force DOM reflow
+          pane.classList.add(isForward ? 'tab-slide-in-3d-right' : 'tab-slide-in-3d-left');
+        } else {
+          pane.classList.add('hidden');
+          pane.classList.remove('tab-slide-in-3d-right', 'tab-slide-in-3d-left');
+        }
+      });
     }
 
     // -------------------------------------------------------------------------
@@ -948,6 +1231,11 @@
           fromInput.value = match[1].trim();
         }
 
+        // Trigger 3D sliding animation for the text file document deck
+        const lines = (data.content.match(/\n/g) || []).length + 1;
+        triggerTextFileSlide3D(filename, data.content.length, lines);
+
+
         // Sync dropdown
         const sel = document.getElementById('sampleSelect');
         if (sel && sel.value !== filename) {
@@ -960,7 +1248,7 @@
           noticeText.innerText = '✓ Successfully loaded ' + filename + ' (' + data.content.length.toLocaleString() + ' bytes into console)';
         }
 
-        // Flash console border
+        // Flash console border with glowing 3D depth
         if (emailBody) {
           emailBody.classList.add('border-cyan-400');
           setTimeout(() => { emailBody.classList.remove('border-cyan-400'); }, 1200);
@@ -1048,6 +1336,7 @@
 
         renderCompleteForensics(j);
 
+
         const resEl = document.getElementById('results');
         if (resEl) {
           resEl.scrollIntoView({ behavior: 'smooth' });
@@ -1113,11 +1402,19 @@
       const ipLabelEl = document.getElementById('ipLabel');
       if (ipLabelEl) ipLabelEl.textContent = h.origin_ip || 'INTERNAL RELAY';
 
-      // Reveal Results Section
+      // Reveal Results Section with 3D Spatial Slide
       const emptyState = document.getElementById('resEmptyState');
       if (emptyState) emptyState.classList.add('hidden');
       const repState = document.getElementById('resReport');
-      if (repState) repState.classList.remove('hidden');
+      if (repState) {
+        repState.classList.remove('hidden');
+        const activePane = document.getElementById('tab-' + currentTabKey);
+        if (activePane) {
+          activePane.classList.remove('hidden', 'tab-slide-in-3d-right', 'tab-slide-in-3d-left');
+          void activePane.offsetWidth;
+          activePane.classList.add('tab-slide-in-3d-right');
+        }
+      }
 
       // Theme logic
       let themeBg = 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300';
@@ -1164,7 +1461,7 @@
         reasons.forEach(r => {
           const li = document.createElement('li');
           li.className = 'flex items-start gap-2 bg-black/30 p-2.5 rounded-xl border border-white/5';
-          li.innerHTML = '<i class="fa-solid fa-circle-exclamation text-amber-400 mt-0.5"></i> <span class="opacity-90">' + r + '</span>';
+          li.innerHTML = '<i class="fa-solid fa-circle-exclamation text-amber-400 mt-0.5"></i> <span class="opacity-90">' + escHtml(r) + '</span>';
           rList.appendChild(li);
         });
       }
@@ -1197,9 +1494,12 @@
       const hdrF = document.getElementById('hdrFrom'); if (hdrF) hdrF.innerText = h.from || 'Not parsed';
       const hdrRP = document.getElementById('hdrReturnPath');
       if (hdrRP) {
-        hdrRP.innerText = h.return_path || 'None (Spoofed)';
+        hdrRP.textContent = h.return_path || 'None (Spoofed)';
         if (h.return_path && h.from && !h.return_path.includes((h.from.split('@')[1] || ' '))) {
-          hdrRP.innerHTML += ' <span class="text-red-400 font-bold ml-2">[MISMATCH FLAGGED]</span>';
+          const badge = document.createElement('span');
+          badge.className = 'text-red-400 font-bold ml-2';
+          badge.textContent = '[MISMATCH FLAGGED]';
+          hdrRP.appendChild(badge);
         }
       }
       const hdrRT = document.getElementById('hdrReplyTo'); if (hdrRT) hdrRT.innerText = h.reply_to || 'Matching From';
@@ -1223,8 +1523,8 @@
             const isSusp = l.suspicious;
             const card = document.createElement('div');
             card.className = 'p-3.5 rounded-xl border ' + (isSusp ? 'bg-red-950/20 border-red-500/30' : 'bg-black/30 border-white/5') + ' font-mono text-xs space-y-1';
-            card.innerHTML = '<div class="flex justify-between items-center gap-2"><span class="text-cyan-300 break-all">' + l.original + '</span><span class="px-2.5 py-0.5 rounded-full text-[9px] font-bold ' + (isSusp ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40') + '">' + (isSusp ? 'SUSPICIOUS' : 'CLEAN') + '</span></div>' +
-              (l.final && l.final !== l.original ? '<div class="text-[11px] opacity-70">↳ Resolved: <span class="text-amber-300 break-all">' + l.final + '</span> (' + l.redirects + ' redirects)</div>' : '') +
+            card.innerHTML = '<div class="flex justify-between items-center gap-2"><span class="text-cyan-300 break-all">' + escHtml(l.original) + '</span><span class="px-2.5 py-0.5 rounded-full text-[9px] font-bold ' + (isSusp ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40') + '">' + (isSusp ? 'SUSPICIOUS' : 'CLEAN') + '</span></div>' +
+              (l.final && l.final !== l.original ? '<div class="text-[11px] opacity-70">↳ Resolved: <span class="text-amber-300 break-all">' + escHtml(l.final) + '</span> (' + escHtml(l.redirects) + ' redirects)</div>' : '') +
               (l.punycode ? '<div class="text-red-400 text-[10px]"><i class="fa-solid fa-triangle-exclamation"></i> Punycode Obfuscation (xn--) Detected</div>' : '');
             lList.appendChild(card);
           });
@@ -1235,9 +1535,10 @@
       const tr = j.trace || {};
       const geo = tr.geo || {};
       const gIp = document.getElementById('geoIpVal'); if (gIp) gIp.innerText = geo.ip || h.origin_ip || 'N/A';
-      const gLoc = document.getElementById('geoLocVal'); if (gLoc) gLoc.innerText = (geo.city || 'Unknown') + ', ' + (geo.region || '') + ', ' + (geo.country || 'Unknown');
+      const gLoc = document.getElementById('geoLocVal'); if (gLoc) gLoc.innerText = (geo.city || 'Unknown') + ', ' + (geo.region ? geo.region + ', ' : '') + (geo.country || 'Unknown');
       const gCoord = document.getElementById('geoCoordsVal'); if (gCoord) gCoord.innerText = geo.loc || (geo.lat ? (geo.lat + ', ' + geo.lon) : (geo.latitude ? (geo.latitude + ', ' + geo.longitude) : 'N/A'));
       const gOrg = document.getElementById('geoOrgVal'); if (gOrg) gOrg.innerText = geo.org || geo.organization || 'N/A';
+      const gSrc = document.getElementById('geoSourceVal'); if (gSrc) gSrc.innerText = geo.source || geo.note || 'Multi-Signal Intelligence';
 
       const whoisData = geo.whois || {};
       const wReg = document.getElementById('whoisReg'); if (wReg) wReg.innerText = whoisData.registrar || 'N/A';
@@ -1254,7 +1555,7 @@
       if (mxBox) {
         const mxList = Array.isArray(tr.mx) ? tr.mx : (typeof tr.mx === 'string' && tr.mx ? [tr.mx] : []);
         if (mxList.length) {
-          mxBox.innerHTML = mxList.map(m => '<div class="text-cyan-300">↳ ' + m + '</div>').join('');
+          mxBox.innerHTML = mxList.map(m => '<div class="text-cyan-300">↳ ' + escHtml(m) + '</div>').join('');
         } else {
           mxBox.innerText = 'No MX exchange records found for sender domain.';
         }
@@ -1275,68 +1576,98 @@
         const hudCoords = document.getElementById('hudCoords');
 
         if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+          const isEnclave = geo.is_private || geo.status === 'INTERNAL_ENCLAVE' || (Math.abs(lat - 20.5937) < 0.01 && Math.abs(lng - 78.9629) < 0.01);
+
           lastThreatOrigin = {
             lat,
             lng,
-            city: geo.city || 'Unknown City',
-            country: geo.country || 'Unknown Country',
+            city: geo.city || (isEnclave ? 'Enterprise Enclave' : 'Unknown City'),
+            country: geo.country || (isEnclave ? 'Internal Network' : 'Unknown Country'),
             ip: geo.ip || h.origin_ip || 'Target IP',
-            org: geo.org || geo.organization || 'Registered ISP / Cloud'
+            org: geo.org || geo.organization || 'Registered Infrastructure',
+            isEnclave
           };
 
           if (hudCoords) {
-            hudCoords.innerText = 'Lock: ' + lat.toFixed(2) + '°, ' + lng.toFixed(2) + '° (' + (geo.country || 'EXT') + ')';
-            hudCoords.className = 'text-cyan-400 font-bold';
+            hudCoords.innerText = isEnclave
+              ? 'Enclave: ' + lat.toFixed(2) + '°, ' + lng.toFixed(2) + '° [Internal Defense Perimeter]'
+              : 'Lock: ' + lat.toFixed(2) + '°, ' + lng.toFixed(2) + '° (' + (geo.country || 'EXT') + ')';
+            hudCoords.className = isEnclave ? 'text-emerald-400 font-bold' : 'text-cyan-400 font-bold';
           }
 
-          const targetLabel = '<div style="background: rgba(10,15,29,0.95); border: 1px solid #ef4444; padding: 10px 14px; border-radius: 10px; font-family: monospace; font-size: 11px; color: #fff; box-shadow: 0 8px 25px rgba(0,0,0,0.8); pointer-events: none;">' +
-            '<div style="color: #ef4444; font-weight: bold; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">' +
-              '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ef4444;"></span>' +
-              'ORIGIN THREAT VECTOR' +
-            '</div>' +
-            '<div style="color: #06b6d4; margin-bottom: 2px;">IP: <span style="color:#fff;">' + lastThreatOrigin.ip + '</span></div>' +
-            '<div style="margin-bottom: 2px;">GEO: <span style="color:#cbd5e1;">' + lastThreatOrigin.city + ', ' + lastThreatOrigin.country + '</span></div>' +
-            '<div style="margin-bottom: 2px;">ISP: <span style="color:#94a3b8;">' + lastThreatOrigin.org + '</span></div>' +
-            '<div style="color: #f59e0b; margin-top: 4px; font-size: 10px;">LAT/LON: ' + lat.toFixed(4) + ', ' + lng.toFixed(4) + '</div>' +
-          '</div>';
+          if (isEnclave) {
+            // Internal delivery within protected perimeter
+            const enclaveLabel = '<div style="background: rgba(10,15,29,0.95); border: 1px solid #10b981; padding: 10px 14px; border-radius: 10px; font-family: monospace; font-size: 11px; color: #fff; box-shadow: 0 8px 25px rgba(0,0,0,0.8); pointer-events: none;">' +
+              '<div style="color: #10b981; font-weight: bold; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">' +
+                '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>' +
+                'INTERNAL ENTERPRISE ENCLAVE (RFC 1918)' +
+              '</div>' +
+              '<div style="color: #06b6d4; margin-bottom: 2px;">IP: <span style="color:#fff;">' + escHtml(lastThreatOrigin.ip) + '</span></div>' +
+              '<div style="margin-bottom: 2px;">SECTOR: <span style="color:#cbd5e1;">' + escHtml(lastThreatOrigin.city) + '</span></div>' +
+              '<div style="color: #10b981; margin-top: 4px; font-size: 10px;">🛡️ DEFENSE PERIMETER ACTIVE</div>' +
+            '</div>';
 
-          const localLabel = '<div style="background: rgba(10,15,29,0.95); border: 1px solid #10b981; padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 11px; color: #fff; box-shadow: 0 6px 20px rgba(0,0,0,0.8); pointer-events: none;">' +
-            '<div style="color: #10b981; font-weight: bold; margin-bottom: 4px;">🛡️ DEFENDER MAILBOX (TARGET)</div>' +
-            '<div>Coordinates: 20.5937° N, 78.9629° E</div>' +
-            '<div style="color: #94a3b8; font-size: 10px;">Secure Inbox Gateway</div>' +
-          '</div>';
-
-          try {
-            globe.arcsData([{
-              startLat: lat,
-              startLng: lng,
-              endLat: 20.5937,
-              endLng: 78.9629,
-              color: ['#ef4444', '#06b6d4']
-            }]);
-
-            globe.pointsData([
-              { lat: lat, lng: lng, size: 0.8, color: '#ef4444', label: targetLabel },
-              { lat: 20.5937, lng: 78.9629, size: 0.5, color: '#10b981', label: localLabel }
-            ]);
-
-            if (typeof globe.ringsData === 'function') {
-              globe.ringsData([{ lat: lat, lng: lng }]);
-            }
-
-            if (typeof globe.controls === 'function') {
-              globe.controls().autoRotate = false;
-              globeAutoRotate = false;
-              const btn = document.getElementById('orbitBtn');
-              if (btn) {
-                btn.innerText = '⟳ Orbit: OFF';
-                btn.className = 'px-2.5 py-1 bg-black/75 hover:bg-black text-slate-400 border border-white/20 rounded-lg text-[10px] font-mono transition backdrop-blur-md shadow-md cursor-pointer';
+            try {
+              globe.arcsData([]);
+              globe.pointsData([
+                { lat: lat, lng: lng, size: 0.9, color: '#10b981', label: enclaveLabel }
+              ]);
+              if (typeof globe.ringsData === 'function') {
+                globe.ringsData([{ lat: lat, lng: lng, color: '#10b981', maxR: 4, propagationSpeed: 2 }]);
               }
-            }
+              globe.pointOfView({ lat: lat, lng: lng, altitude: 2.0 }, 1200);
+            } catch (e) {}
+          } else {
+            // External threat or remote sender
+            const targetLabel = '<div style="background: rgba(10,15,29,0.95); border: 1px solid #ef4444; padding: 10px 14px; border-radius: 10px; font-family: monospace; font-size: 11px; color: #fff; box-shadow: 0 8px 25px rgba(0,0,0,0.8); pointer-events: none;">' +
+              '<div style="color: #ef4444; font-weight: bold; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">' +
+                '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ef4444;"></span>' +
+                'ORIGIN THREAT VECTOR' +
+              '</div>' +
+              '<div style="color: #06b6d4; margin-bottom: 2px;">IP: <span style="color:#fff;">' + escHtml(lastThreatOrigin.ip) + '</span></div>' +
+              '<div style="margin-bottom: 2px;">GEO: <span style="color:#cbd5e1;">' + escHtml(lastThreatOrigin.city) + ', ' + escHtml(lastThreatOrigin.country) + '</span></div>' +
+              '<div style="margin-bottom: 2px;">ISP: <span style="color:#94a3b8;">' + escHtml(lastThreatOrigin.org) + '</span></div>' +
+              '<div style="color: #f59e0b; margin-top: 4px; font-size: 10px;">LAT/LON: ' + lat.toFixed(4) + ', ' + lng.toFixed(4) + '</div>' +
+            '</div>';
 
-            globe.pointOfView({ lat: lat, lng: lng, altitude: 1.6 }, 1200);
-          } catch (globeErr) {
-            console.warn('[TraceMail] Globe update warning:', globeErr);
+            const localLabel = '<div style="background: rgba(10,15,29,0.95); border: 1px solid #10b981; padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 11px; color: #fff; box-shadow: 0 6px 20px rgba(0,0,0,0.8); pointer-events: none;">' +
+              '<div style="color: #10b981; font-weight: bold; margin-bottom: 4px;">🛡️ DEFENDER MAILBOX (TARGET)</div>' +
+              '<div>Coordinates: 20.5937° N, 78.9629° E</div>' +
+              '<div style="color: #94a3b8; font-size: 10px;">Secure Inbox Gateway</div>' +
+            '</div>';
+
+            try {
+              globe.arcsData([{
+                startLat: lat,
+                startLng: lng,
+                endLat: 20.5937,
+                endLng: 78.9629,
+                color: ['#ef4444', '#06b6d4']
+              }]);
+
+              globe.pointsData([
+                { lat: lat, lng: lng, size: 0.8, color: '#ef4444', label: targetLabel },
+                { lat: 20.5937, lng: 78.9629, size: 0.5, color: '#10b981', label: localLabel }
+              ]);
+
+              if (typeof globe.ringsData === 'function') {
+                globe.ringsData([{ lat: lat, lng: lng }]);
+              }
+
+              if (typeof globe.controls === 'function') {
+                globe.controls().autoRotate = false;
+                globeAutoRotate = false;
+                const btn = document.getElementById('orbitBtn');
+                if (btn) {
+                  btn.innerText = '⟳ Orbit: OFF';
+                  btn.className = 'px-2.5 py-1 bg-black/75 hover:bg-black text-slate-400 border border-white/20 rounded-lg text-[10px] font-mono transition backdrop-blur-md shadow-md cursor-pointer';
+                }
+              }
+
+              globe.pointOfView({ lat: lat, lng: lng, altitude: 1.6 }, 1200);
+            } catch (globeErr) {
+              console.warn('[TraceMail] Globe update warning:', globeErr);
+            }
           }
         } else {
           lastThreatOrigin = null;
@@ -1375,7 +1706,7 @@
             const icon = typeIcons[n.type] || 'fa-circle-nodes text-slate-400';
             const card = document.createElement('div');
             card.className = 'glass glass-card p-4 rounded-xl border border-white/10 font-mono text-xs space-y-1.5';
-            card.innerHTML = '<div class="flex items-center justify-between"><span class="text-[10px] tracking-wider opacity-50 uppercase flex items-center gap-1.5"><i class="fa-solid ' + icon + '"></i> ' + n.type + '</span><span class="text-[9px] bg-white/10 px-2 py-0.5 rounded-full">' + ((n.id || '').split(':')[0]) + '</span></div><div class="text-white font-bold truncate">' + (n.label || n.id) + '</div>';
+            card.innerHTML = '<div class="flex items-center justify-between"><span class="text-[10px] tracking-wider opacity-50 uppercase flex items-center gap-1.5"><i class="fa-solid ' + icon + '"></i> ' + escHtml(n.type) + '</span><span class="text-[9px] bg-white/10 px-2 py-0.5 rounded-full">' + escHtml((n.id || '').split(':')[0]) + '</span></div><div class="text-white font-bold truncate">' + escHtml(n.label || n.id) + '</div>';
             iocBox.appendChild(card);
           });
         }
@@ -1547,12 +1878,34 @@
       console.warn('Globe.gl initialization deferred:', e);
     }
 
-    // 6. File Input and Drag-and-Drop Handlers
+    // 6. File Reading, Drag-and-Drop & 3D Tilt Handlers
+    function ingestFileInto3DConsole(file) {
+      const lb = document.getElementById('fileLabel');
+      if (lb) lb.innerText = 'Attached: ' + file.name;
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target.result || '';
+        const emailBody = document.getElementById('emailBody');
+        if (emailBody) emailBody.value = content;
+        
+        const match = content.match(/From:[ \t]*([^\r\n]+)/i);
+        const fromInput = document.getElementById('fromInput');
+        if (match && fromInput && !fromInput.value) {
+          fromInput.value = match[1].trim();
+        }
+
+        const lines = (content.match(/\n/g) || []).length + 1;
+        triggerTextFileSlide3D(file.name, file.size, lines);
+      };
+      reader.readAsText(file);
+    }
+
     const fileInputEl = document.getElementById('fileInput');
     if (fileInputEl) {
       fileInputEl.addEventListener('change', (e) => {
         if (e.target.files && e.target.files[0]) {
-          document.getElementById('fileLabel').innerText = 'Attached: ' + e.target.files[0].name;
+          ingestFileInto3DConsole(e.target.files[0]);
         }
       });
     }
@@ -1563,14 +1916,14 @@
         dropZone.addEventListener(eventName, (e) => {
           e.preventDefault();
           e.stopPropagation();
-          dropZone.classList.add('border-cyan-400', 'bg-white/10');
+          dropZone.classList.add('drag-over');
         }, false);
       });
       ['dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
           e.preventDefault();
           e.stopPropagation();
-          dropZone.classList.remove('border-cyan-400', 'bg-white/10');
+          dropZone.classList.remove('drag-over');
         }, false);
       });
       dropZone.addEventListener('drop', (e) => {
@@ -1579,9 +1932,37 @@
           const file = dt.files[0];
           const input = document.getElementById('fileInput');
           if (input) input.files = dt.files;
-          const lb = document.getElementById('fileLabel');
-          if (lb) lb.innerText = 'Attached: ' + file.name;
+          ingestFileInto3DConsole(file);
         }
+      });
+    }
+
+    // Interactive 3D Mouse Parallax Tilt on Text File Deck
+    const textDeckEl = document.getElementById('textFileDeck');
+    if (textDeckEl) {
+      textDeckEl.addEventListener('mousemove', (e) => {
+        const rect = textDeckEl.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const rotateX = ((y - centerY) / centerY) * -6; // max 6deg tilt
+        const rotateY = ((x - centerX) / centerX) * 6;
+        textDeckEl.style.transform = `perspective(1000px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) translateZ(8px)`;
+      });
+      textDeckEl.addEventListener('mouseleave', () => {
+        textDeckEl.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0px)';
+      });
+    }
+
+    // Real-time Telemetry on Textarea Typing/Pasting
+    const rawEmailArea = document.getElementById('emailBody');
+    if (rawEmailArea) {
+      rawEmailArea.addEventListener('input', () => {
+        const val = rawEmailArea.value;
+        const lines = val ? (val.match(/\n/g) || []).length + 1 : 0;
+        const bytes = new Blob([val]).size;
+        updateFileTelemetry(lines, bytes, val.length > 0 ? 'STREAMING' : 'IDLE');
       });
     }
 

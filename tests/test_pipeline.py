@@ -213,6 +213,50 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(oob_res["category"], "REMEDIATION")
         self.assertIn("Out-of-Band", oob_res["reply"])
 
+    def test_evidence_generator_handles_special_xml_characters(self):
+        from engine.evidence_generator import EvidenceGenerator
+        bad_data = {
+            "analysis_id": "TEST<SPECIAL>&ID",
+            "forensic_hash": "a" * 64,
+            "threat_analysis": {"verdict": "MALICIOUS <SCRIPT> & ATTACK", "threat_score": 88.0},
+            "ml_analysis": {"phishing_probability": 0.95, "label": "PHISHING <ALERT>"},
+            "headers": {"from": "attacker<script>@evil.com", "to": "victim@co.org"},
+            "authentication": {},
+            "hops_analysis": {},
+            "ledger_receipt": {"record_hash": "RECORD<HASH>&01"}
+        }
+        with tempfile.NamedTemporaryFile(suffix=".pdf") as f:
+            pdf_path = EvidenceGenerator.generate_pdf(bad_data, f.name)
+            self.assertTrue(Path(pdf_path).exists())
+            self.assertGreater(Path(pdf_path).stat().st_size, 1000)
+
+    def test_auth_validator_dns_caching(self):
+        from engine.auth_validator import AuthValidator
+        AuthValidator._DNS_CACHE.clear()
+        v1 = AuthValidator({"from": "user@google.com"})
+        r1 = v1._query_dns_records("google.com")
+        self.assertIn("google.com", AuthValidator._DNS_CACHE)
+
+        # Second call must hit cache immediately
+        with patch("dns.resolver.Resolver") as mock_resolver:
+            r2 = v1._query_dns_records("google.com")
+            mock_resolver.assert_not_called()
+            self.assertEqual(r1, r2)
+
+    def test_geoip_cache_bounding(self):
+        from engine.geoip_resolver import GeoIPResolver
+        GeoIPResolver.CACHE.clear()
+        original_max = GeoIPResolver.MAX_CACHE_SIZE
+        try:
+            GeoIPResolver.MAX_CACHE_SIZE = 5
+            for i in range(10):
+                GeoIPResolver._store_cache(f"key-{i}", {"data": i})
+            self.assertLessEqual(len(GeoIPResolver.CACHE), 5)
+            self.assertIn("key-9", GeoIPResolver.CACHE)
+            self.assertNotIn("key-0", GeoIPResolver.CACHE)
+        finally:
+            GeoIPResolver.MAX_CACHE_SIZE = original_max
+
 
 if __name__ == "__main__":
     unittest.main()

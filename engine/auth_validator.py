@@ -26,6 +26,10 @@ class AuthValidator:
         "hubspot.com", "postmarkapp.com", "sparkpostmail.com", "mandrillapp.com"
     }
 
+    # Cache for DNS TXT/DMARC queries to prevent redundant network lookups
+    _DNS_CACHE: Dict[str, Dict[str, Any]] = {}
+    _MAX_DNS_CACHE: int = 500
+
     def __init__(self, headers: Dict[str, Any]):
         self.headers = headers
         self.from_header = headers.get("from", "")
@@ -245,17 +249,25 @@ class AuthValidator:
         }
 
     def _query_dns_records(self, domain: str) -> Dict[str, Any]:
-        """Queries public DNS for SPF and DMARC TXT records."""
+        """Queries public DNS for SPF and DMARC TXT records with in-memory caching."""
         if not DNS_AVAILABLE or not domain:
             return {"spf_record": None, "dmarc_record": None, "dns_query_status": "DNS_NOT_AVAILABLE"}
+
+        clean_dom = domain.strip().lower()
+        if not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', clean_dom):
+            return {"spf_record": None, "dmarc_record": None, "dns_query_status": "INVALID_DOMAIN"}
+
+        if clean_dom in self._DNS_CACHE:
+            return dict(self._DNS_CACHE[clean_dom])
 
         spf_rec = None
         dmarc_rec = None
         resolver = dns.resolver.Resolver()
-        resolver.lifetime = 1.5
+        resolver.lifetime = 1.2
+        resolver.timeout = 1.0
 
         try:
-            answers = resolver.resolve(domain, 'TXT')
+            answers = resolver.resolve(clean_dom, 'TXT')
             for rdata in answers:
                 txt_str = rdata.to_text().strip('"')
                 if "v=spf1" in txt_str:
@@ -265,7 +277,7 @@ class AuthValidator:
             spf_rec = None
 
         try:
-            dmarc_answers = resolver.resolve(f"_dmarc.{domain}", 'TXT')
+            dmarc_answers = resolver.resolve(f"_dmarc.{clean_dom}", 'TXT')
             for rdata in dmarc_answers:
                 txt_str = rdata.to_text().strip('"')
                 if "v=DMARC1" in txt_str:
@@ -274,8 +286,16 @@ class AuthValidator:
         except Exception:
             dmarc_rec = None
 
-        return {
+        result = {
             "spf_record": spf_rec,
             "dmarc_record": dmarc_rec,
             "dns_query_status": "OK" if (spf_rec or dmarc_rec) else "NO_RECORDS"
         }
+        if len(self._DNS_CACHE) >= self._MAX_DNS_CACHE:
+            try:
+                first_k = next(iter(self._DNS_CACHE))
+                del self._DNS_CACHE[first_k]
+            except Exception:
+                pass
+        self._DNS_CACHE[clean_dom] = result
+        return dict(result)
