@@ -18,7 +18,31 @@ class EmailParser:
     """Parses raw email data (.eml or string) into a structured forensic object."""
 
     IPV4_PATTERN = re.compile(r'\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b')
+    IPV6_PATTERN = re.compile(r'\[(?:IPv6:)?([0-9a-fA-F:]+)\]|\b((?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4})\b')
     URL_PATTERN = re.compile(r'https?://[^\s<>"\']+|www\.[^\s<>"\']+')
+
+    @classmethod
+    def _extract_ip_candidates(cls, text: str) -> List[str]:
+        """Extracts valid IPv4 and IPv6 addresses from text in order of appearance."""
+        if not text:
+            return []
+        found_ips: List[str] = []
+        for m in cls.IPV4_PATTERN.findall(text):
+            try:
+                ip = ipaddress.ip_address(m)
+                found_ips.append(str(ip))
+            except ValueError:
+                pass
+        for m in cls.IPV6_PATTERN.finditer(text):
+            cand = m.group(1) or m.group(2)
+            if cand and ':' in cand:
+                try:
+                    ip = ipaddress.ip_address(cand)
+                    if isinstance(ip, ipaddress.IPv6Address):
+                        found_ips.append(str(ip))
+                except ValueError:
+                    pass
+        return found_ips
 
     def __init__(self, raw_content: Union[str, bytes]):
         self.raw_bytes = raw_content if isinstance(raw_content, bytes) else raw_content.encode('utf-8')
@@ -126,13 +150,13 @@ class EmailParser:
         """Parses a single Received header line into IP, MTA domains, protocol, and timestamp."""
         clean_text = " ".join(header_str.split())
 
-        # Extract IPs
-        found_ips = self.IPV4_PATTERN.findall(clean_text)
+        # Extract IPs (IPv4 and IPv6)
+        found_ips = self._extract_ip_candidates(clean_text)
         candidate_ip = None
         for ip in found_ips:
             try:
                 ip_obj = ipaddress.ip_address(ip)
-                if not ip_obj.is_private and not ip_obj.is_loopback:
+                if not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_link_local):
                     candidate_ip = ip
                     break
             except ValueError:
@@ -175,6 +199,14 @@ class EmailParser:
             except Exception:
                 timestamp_str = raw_ts
 
+        is_pub = False
+        if candidate_ip:
+            try:
+                ip_obj = ipaddress.ip_address(candidate_ip)
+                is_pub = not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_link_local)
+            except ValueError:
+                is_pub = False
+
         return {
             "hop_number": hop_index,
             "ip": candidate_ip,
@@ -183,17 +215,18 @@ class EmailParser:
             "protocol": protocol,
             "raw_timestamp": timestamp_str,
             "timestamp_iso": iso_timestamp,
-            "is_public_ip": bool(candidate_ip and not ipaddress.ip_address(candidate_ip).is_private if candidate_ip else False),
+            "is_public_ip": is_pub,
             "raw_header": header_str[:250] + ("..." if len(header_str) > 250 else "")
         }
 
     def _determine_origin_candidate(self, hops: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Returns a candidate source IP with an explicit evidence limitation."""
         x_orig = str(self.msg.get("X-Originating-IP", ""))
-        ips = self.IPV4_PATTERN.findall(x_orig)
+        ips = self._extract_ip_candidates(x_orig)
         for ip in ips:
             try:
-                if not ipaddress.ip_address(ip).is_private:
+                ip_obj = ipaddress.ip_address(ip)
+                if not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_link_local):
                     return {
                         "ip": ip,
                         "source": "X-Originating-IP header",
@@ -259,8 +292,17 @@ class EmailParser:
         combined_text = plain_text + " " + html_text
         found_links = list(set(self.URL_PATTERN.findall(combined_text)))
 
+        extracted_plain = plain_text.strip()
+        # Fall back to stripped HTML if no text/plain body was provided (critical for HTML-only phishing & ML inference)
+        if not extracted_plain and html_text.strip():
+            clean_html = re.sub(r'<style[^>]*>.*?</style>', ' ', html_text, flags=re.DOTALL | re.IGNORECASE)
+            clean_html = re.sub(r'<script[^>]*>.*?</script>', ' ', clean_html, flags=re.DOTALL | re.IGNORECASE)
+            clean_html = re.sub(r'<[^>]+>', ' ', clean_html)
+            clean_html = " ".join(clean_html.split())
+            extracted_plain = clean_html
+
         return {
-            "plain_text": plain_text.strip(),
+            "plain_text": extracted_plain,
             "has_html": bool(html_text),
             "links": found_links,
             "total_links": len(found_links)

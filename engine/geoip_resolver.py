@@ -7,6 +7,7 @@ import ipaddress
 import urllib.request
 import json
 import re
+import threading
 from typing import Dict, Any, Optional
 
 class GeoIPResolver:
@@ -15,17 +16,19 @@ class GeoIPResolver:
     # In-memory cache to prevent redundant lookups with LRU bounds
     CACHE: Dict[str, Dict[str, Any]] = {}
     MAX_CACHE_SIZE: int = 1000
+    _lock = threading.Lock()
 
     @classmethod
     def _store_cache(cls, key: str, value: Dict[str, Any]) -> None:
-        """Stores entry with FIFO/LRU eviction to prevent memory leaks."""
-        if len(cls.CACHE) >= cls.MAX_CACHE_SIZE:
-            try:
-                first_k = next(iter(cls.CACHE))
-                del cls.CACHE[first_k]
-            except Exception:
-                pass
-        cls.CACHE[key] = value
+        """Thread-safe cache store with FIFO/LRU eviction."""
+        with cls._lock:
+            if len(cls.CACHE) >= cls.MAX_CACHE_SIZE:
+                try:
+                    first_k = next(iter(cls.CACHE))
+                    del cls.CACHE[first_k]
+                except Exception:
+                    pass
+            cls.CACHE[key] = value
 
     # Known Tor exit nodes / Bulletproof host prefixes (sample list for offline detection)
     KNOWN_TOR_IPS = {"185.220.101.5", "185.220.101.6", "185.220.101.7", "198.98.56.12", "199.249.230.88"}
@@ -382,15 +385,14 @@ class GeoIPResolver:
         if not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', domain):
             return cls._empty_geo(f"Invalid domain syntax: {domain}")
 
-        # Attempt live DNS resolution with bounded socket timeout
+        # Attempt live DNS resolution with bounded per-instance timeout (no global socket mutations)
         try:
-            import socket
-            orig_timeout = socket.getdefaulttimeout()
-            try:
-                socket.setdefaulttimeout(1.2)
-                resolved_ip = socket.gethostbyname(domain)
-            finally:
-                socket.setdefaulttimeout(orig_timeout)
+            import dns.resolver
+            resolver = dns.resolver.Resolver()
+            resolver.lifetime = 1.2
+            resolver.timeout = 1.0
+            answers = resolver.resolve(domain, 'A')
+            resolved_ip = answers[0].to_text() if answers else None
 
             if resolved_ip:
                 geo = cls.resolve(resolved_ip)
@@ -401,7 +403,20 @@ class GeoIPResolver:
                     cls._store_cache(cache_key, res)
                     return res
         except Exception:
-            pass
+            # Fallback to socket gethostbyname only if dnspython resolution fails
+            try:
+                import socket
+                resolved_ip = socket.gethostbyname(domain)
+                if resolved_ip:
+                    geo = cls.resolve(resolved_ip)
+                    if geo.get("latitude") is not None:
+                        res = dict(geo)
+                        res["resolved_from_domain"] = domain
+                        res["note"] = f"Resolved via domain DNS ({domain} -> {resolved_ip})"
+                        cls._store_cache(cache_key, res)
+                        return res
+            except Exception:
+                pass
 
         return cls._empty_geo(f"Domain could not be resolved: {domain}")
 
