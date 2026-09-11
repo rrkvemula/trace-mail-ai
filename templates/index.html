@@ -271,6 +271,21 @@
   </style>
 </head>
 <body>
+  <!-- Global Window Drag-and-Drop Fullscreen HUD Overlay -->
+  <div id="globalDropOverlay" class="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-2xl border-4 border-dashed border-cyan-400 pointer-events-none opacity-0 transition-opacity duration-300 flex flex-col items-center justify-center p-6">
+    <div class="text-center space-y-5 max-w-lg p-10 rounded-3xl bg-cyan-950/50 border border-cyan-400/50 shadow-2xl shadow-cyan-500/40">
+      <div class="w-24 h-24 mx-auto rounded-3xl bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-cyan-300 text-5xl animate-bounce shadow-xl shadow-cyan-400/30">
+        <i class="fa-solid fa-cloud-arrow-up"></i>
+      </div>
+      <h2 class="text-2xl md:text-3xl font-bold font-mono text-white tracking-wider">DROP .EML EMAIL ANYWHERE</h2>
+      <p class="text-cyan-300 font-mono text-xs">Release file to instantly parse RFC 5322 Invariants, MTA Hops & God's Eye 3D Mapping</p>
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-slate-300 text-[11px] font-mono">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        Zero-Storage Privacy • 100% Air-Gapped Local Analysis
+      </div>
+    </div>
+  </div>
+
   <div class="grain"></div>
   <canvas id="fluid"></canvas>
 
@@ -288,6 +303,10 @@
         <a href="#results" class="hover:opacity-100 transition">FORENSIC RESULTS</a>
       </div>
       <div class="flex items-center gap-3">
+        <button type="button" onclick="triggerFileInputClick()" class="magnet px-4 py-2 rounded-full text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 hover:bg-cyan-400 hover:text-black transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-cyan-500/10">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+          <span>Upload .eml</span>
+        </button>
         <a href="#scan" class="magnet glass px-5 py-2 rounded-full text-xs tracking-widest hover:bg-white hover:text-black transition">DASHBOARD ● LIVE</a>
       </div>
     </div>
@@ -328,8 +347,12 @@
     </div>
 
     <div class="flex flex-wrap gap-4 mt-8">
-      <a href="#scan" class="magnet bg-white text-black px-8 py-4 rounded-full font-bold text-xs tracking-wider shadow-lg shadow-white/10 hover:bg-slate-200 transition flex items-center gap-2">
-        <span>RUN FORENSIC SCAN</span>
+      <button type="button" onclick="triggerFileInputClick()" class="magnet bg-cyan-400 text-black px-8 py-4 rounded-full font-bold text-xs tracking-wider shadow-lg shadow-cyan-400/25 hover:bg-cyan-300 transition flex items-center gap-2.5 cursor-pointer">
+        <i class="fa-solid fa-cloud-arrow-up text-sm"></i>
+        <span>UPLOAD .EML FILE</span>
+      </button>
+      <a href="#scan" class="magnet glass px-8 py-4 rounded-full font-bold text-xs tracking-wider border border-white/20 hover:bg-white hover:text-black transition flex items-center gap-2">
+        <span>CONSOLE VIEW</span>
         <i class="fa-solid fa-arrow-right"></i>
       </a>
       <span class="glass px-6 py-4 rounded-full text-xs flex items-center gap-2 opacity-80 font-mono">
@@ -353,61 +376,51 @@
             <span class="text-[10px] tracking-widest bg-cyan-400 text-black font-bold px-3 py-1 rounded-full">FORENSIC PIPELINE</span>
           </div>
 
-          <!-- In-App Sample Threat Repository Selector -->
-          <div class="bg-cyan-950/40 border border-cyan-500/30 rounded-2xl p-4 mb-5 shadow-lg shadow-cyan-950/20">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-bold text-cyan-300 flex items-center gap-2">
-                <i class="fa-solid fa-folder-open text-cyan-400"></i>
-                <span>Sample Threat Repository (In-App)</span>
-              </span>
-              <span id="sampleLoadBadge" class="text-[10px] font-mono opacity-60 text-cyan-200">9 pre-loaded attacks & clean samples</span>
-            </div>
-            <div class="flex flex-col sm:flex-row gap-2.5">
-              <select id="sampleSelect" onchange="onSampleDropdownChange(this.value)" class="w-full sm:flex-1 bg-black/70 text-xs font-mono rounded-xl p-2.5 border border-white/20 text-white focus:border-cyan-400 outline-none cursor-pointer min-w-0">
-                <option value="">-- Select In-App Sample Email to Load into Console --</option>
-                <option value="vendor_bank_change_bec.eml">🚨 Vendor BEC: Bank Change Wire Fraud (High Risk / Payment Diversion)</option>
-                <option value="credential_harvest_ssrf_attack.eml">☠️ Credential Harvest: SSRF & Punycode (High Risk / Harvest)</option>
-                <option value="payroll_direct_deposit_bec.eml">⚠️ Payroll BEC: VIP Display Name Spoofing (High Risk)</option>
-                <option value="ceo_bec_fraud.eml">💼 CEO BEC: Urgent Wire Fraud Scam (High Risk)</option>
-                <option value="forged_relay_attack.eml">🔄 Forged Relay: Hop Spoofing & IP Mismatch (Suspicious)</option>
-                <option value="credential_phishing_portal.eml">🎣 Credential Phishing: O365 Fake Portal (High Risk)</option>
-                <option value="legitimate_urgent_executive.eml">🛡️ Legit Urgent Executive Memo (Evidence Precedence / Clean Pass)</option>
-                <option value="legitimate_delivery.eml">✅ Legitimate Delivery (SPF / DKIM / DMARC Pass)</option>
-                <option value="legitimate_password_expiry_notice.eml">✅ Legitimate Password Expiry Notice (Corporate IT / Clean)</option>
-              </select>
-              <div class="flex gap-2 shrink-0">
-                <button type="button" onclick="importSelectedSample(false)" class="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border border-white/10" title="Load sample text into console without scanning">
-                  <i class="fa-solid fa-file-import text-cyan-400"></i>
-                  <span>Load Into Console</span>
-                </button>
-                <button type="button" onclick="importSelectedSample(true)" class="px-3.5 py-2 bg-cyan-400 hover:bg-cyan-300 text-black font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-md shadow-cyan-400/20" title="Load sample and immediately run deep scan">
-                  <i class="fa-solid fa-bolt"></i>
-                  <span>Load & Deep Scan</span>
-                </button>
-              </div>
-            </div>
-            <!-- Feedback banner on import -->
-            <div id="importNotice" class="hidden mt-2.5 p-2 bg-cyan-900/30 border border-cyan-400/40 rounded-xl text-[11px] font-mono text-cyan-300 flex items-center gap-2">
-              <i class="fa-solid fa-circle-check text-cyan-400"></i>
-              <span id="importNoticeText">Sample email loaded into console editor.</span>
-            </div>
+          <!-- Ingestion Mode Navigation Switcher -->
+          <div class="flex flex-wrap gap-2 mb-4 p-1.5 glass rounded-2xl border border-white/10 text-xs font-mono">
+            <button type="button" onclick="switchInputMode('upload')" id="inputTabUpload" class="flex-1 py-2.5 px-3 rounded-xl font-bold transition flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-md shadow-cyan-500/20 cursor-pointer">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+              <span>📁 1. Upload / Drop .EML</span>
+            </button>
+            <button type="button" onclick="switchInputMode('paste')" id="inputTabPaste" class="flex-1 py-2.5 px-3 rounded-xl font-medium opacity-60 hover:opacity-100 transition flex items-center justify-center gap-2 text-slate-300 cursor-pointer">
+              <i class="fa-solid fa-paste"></i>
+              <span>✍️ 2. Paste Headers</span>
+            </button>
+            <button type="button" onclick="switchInputMode('samples')" id="inputTabSamples" class="flex-1 py-2.5 px-3 rounded-xl font-medium opacity-60 hover:opacity-100 transition flex items-center justify-center gap-2 text-slate-300 cursor-pointer">
+              <i class="fa-solid fa-folder-open"></i>
+              <span>📚 3. Sample Attacks</span>
+            </button>
           </div>
 
           <form id="f" action="javascript:void(0);" onsubmit="runForensicScan(); return false;" class="space-y-4">
-            <!-- 3D Perspective File & Text Ingestion Dock -->
-            <div id="fileDock3D" class="perspective-dock space-y-3">
-              
-              <!-- 3D Dropzone Card -->
-              <label id="dropZone" class="glass rounded-2xl p-4 flex flex-col items-center justify-center border-dashed border-white/20 cursor-pointer hover:bg-white/5 transition group relative overflow-hidden drop-zone-3d">
-                <i class="fa-solid fa-cloud-arrow-up text-cyan-400 text-xl mb-1 group-hover:scale-110 group-hover:-translate-y-1 transition"></i>
-                <span class="text-xs opacity-75 group-hover:opacity-100 transition font-medium" id="fileLabel">Drop .eml / text file or click to browse</span>
-                <span class="text-[10px] opacity-35 mt-0.5 font-mono">MIME • RFC 5322 Invariants • 3D Telemetry Ingestion</span>
-                <input type="file" name="eml" id="fileInput" accept=".eml,.txt" class="hidden">
+            <!-- TAB 1: DEDICATED LARGE DRAG & DROP / UPLOAD .EML ZONE -->
+            <div id="sectionUpload" class="space-y-3">
+              <label id="dropZone" class="glass rounded-3xl p-8 md:p-10 flex flex-col items-center justify-center border-2 border-dashed border-cyan-400/60 hover:border-cyan-300 cursor-pointer bg-gradient-to-b from-cyan-950/40 via-black/60 to-blue-950/40 hover:bg-cyan-950/60 transition-all duration-300 group relative overflow-hidden drop-zone-3d shadow-2xl shadow-cyan-950/50 min-h-[210px]">
+                <div class="w-16 h-16 rounded-2xl bg-cyan-500/20 border border-cyan-400/60 flex items-center justify-center text-cyan-300 text-3xl mb-3 group-hover:scale-110 group-hover:-translate-y-1 transition shadow-lg shadow-cyan-500/30">
+                  <i class="fa-solid fa-cloud-arrow-up"></i>
+                </div>
+                <span class="text-base md:text-xl font-bold text-white tracking-wide group-hover:text-cyan-300 transition text-center font-mono" id="fileLabel">
+                  DRAG & DROP .EML EMAIL HERE
+                </span>
+                <p class="text-xs text-slate-400 mt-1 text-center">
+                  or <span class="text-cyan-400 underline font-semibold cursor-pointer">browse your files (.eml / .txt)</span> to analyze
+                </p>
+                <div class="mt-4 flex flex-wrap justify-center gap-2 text-[10px] font-mono text-slate-400">
+                  <span class="px-2.5 py-1 rounded-full bg-black/60 border border-white/10 flex items-center gap-1"><i class="fa-solid fa-shield-halved text-cyan-400"></i> RFC 5322 Invariant Engine</span>
+                  <span class="px-2.5 py-1 rounded-full bg-black/60 border border-white/10 flex items-center gap-1"><i class="fa-solid fa-lock text-emerald-400"></i> Air-Gapped / Zero-Cloud</span>
+                  <span class="px-2.5 py-1 rounded-full bg-black/60 border border-white/10 flex items-center gap-1"><i class="fa-solid fa-eye text-sky-400"></i> God's Eye 3D Mapping</span>
+                </div>
+                <div id="fileStatusPill" class="hidden mt-4 px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-xs font-mono font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/10 animate-pulse">
+                  <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                  <span id="fileStatusPillText">File Attached: email.eml</span>
+                </div>
+                <input type="file" name="eml" id="fileInput" accept=".eml,.txt,.msg" class="hidden">
               </label>
+            </div>
 
-              <!-- 3D Text File Deck (Sliding 3D Document Cartridge) -->
+            <!-- TAB 2: RAW TEXT DECK -->
+            <div id="sectionPaste" class="hidden space-y-3">
               <div id="textFileDeck" class="relative glass rounded-2xl p-3 border border-white/10 text-file-deck-3d transition duration-300">
-                <!-- 3D Document Header Bar -->
                 <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-[11px] font-mono select-none">
                   <div class="flex items-center gap-2">
                     <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
@@ -423,14 +436,50 @@
                     </button>
                   </div>
                 </div>
-
-                <!-- Laser Scanline Indicator (fires on 3D slide) -->
                 <div id="laserScanline" class="laser-scanner-line pointer-events-none"></div>
-
-                <!-- Actual Text Area -->
-                <textarea name="email_body" id="emailBody" placeholder="Or paste raw email with headers (Return-Path, Received, Authentication-Results, Subject...)" class="w-full h-36 bg-black/40 rounded-xl p-3.5 text-xs font-mono border border-white/5 focus:border-cyan-400 outline-none transition leading-relaxed resize-y"></textarea>
+                <textarea name="email_body" id="emailBody" placeholder="Paste raw email with headers (Return-Path, Received, Authentication-Results, Subject, Date...)" class="w-full h-44 bg-black/50 rounded-xl p-3.5 text-xs font-mono border border-white/10 focus:border-cyan-400 outline-none transition leading-relaxed resize-y"></textarea>
               </div>
+            </div>
 
+            <!-- TAB 3: IN-APP SAMPLES SELECTOR -->
+            <div id="sectionSamples" class="hidden space-y-3">
+              <div class="bg-cyan-950/40 border border-cyan-500/30 rounded-2xl p-4 shadow-lg shadow-cyan-950/20">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs font-bold text-cyan-300 flex items-center gap-2">
+                    <i class="fa-solid fa-folder-open text-cyan-400"></i>
+                    <span>Pre-loaded Attack & Defense Scenarios</span>
+                  </span>
+                  <span id="sampleLoadBadge" class="text-[10px] font-mono opacity-60 text-cyan-200">9 test emails</span>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2.5">
+                  <select id="sampleSelect" onchange="onSampleDropdownChange(this.value)" class="w-full sm:flex-1 bg-black/70 text-xs font-mono rounded-xl p-2.5 border border-white/20 text-white focus:border-cyan-400 outline-none cursor-pointer min-w-0">
+                    <option value="">-- Select In-App Sample Email to Load into Console --</option>
+                    <option value="vendor_bank_change_bec.eml">🚨 Vendor BEC: Bank Change Wire Fraud (High Risk / Payment Diversion)</option>
+                    <option value="credential_harvest_ssrf_attack.eml">☠️ Credential Harvest: SSRF & Punycode (High Risk / Harvest)</option>
+                    <option value="payroll_direct_deposit_bec.eml">⚠️ Payroll BEC: VIP Display Name Spoofing (High Risk)</option>
+                    <option value="ceo_bec_fraud.eml">💼 CEO BEC: Urgent Wire Fraud Scam (High Risk)</option>
+                    <option value="forged_relay_attack.eml">🔄 Forged Relay: Hop Spoofing & IP Mismatch (Suspicious)</option>
+                    <option value="credential_phishing_portal.eml">🎣 Credential Phishing: O365 Fake Portal (High Risk)</option>
+                    <option value="legitimate_urgent_executive.eml">🛡️ Legit Urgent Executive Memo (Evidence Precedence / Clean Pass)</option>
+                    <option value="legitimate_delivery.eml">✅ Legitimate Delivery (SPF / DKIM / DMARC Pass)</option>
+                    <option value="legitimate_password_expiry_notice.eml">✅ Legitimate Password Expiry Notice (Corporate IT / Clean)</option>
+                  </select>
+                  <div class="flex gap-2 shrink-0">
+                    <button type="button" onclick="importSelectedSample(false)" class="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border border-white/10" title="Load sample text into console without scanning">
+                      <i class="fa-solid fa-file-import text-cyan-400"></i>
+                      <span>Load</span>
+                    </button>
+                    <button type="button" onclick="importSelectedSample(true)" class="px-3.5 py-2 bg-cyan-400 hover:bg-cyan-300 text-black font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-md shadow-cyan-400/20" title="Load sample and immediately run deep scan">
+                      <i class="fa-solid fa-bolt"></i>
+                      <span>Scan Now</span>
+                    </button>
+                  </div>
+                </div>
+                <div id="importNotice" class="hidden mt-2.5 p-2 bg-cyan-900/30 border border-cyan-400/40 rounded-xl text-[11px] font-mono text-cyan-300 flex items-center gap-2">
+                  <i class="fa-solid fa-circle-check text-cyan-400"></i>
+                  <span id="importNoticeText">Sample email loaded into console editor.</span>
+                </div>
+              </div>
             </div>
 
             <input name="from" id="fromInput" placeholder="Sender Override: e.g. ceo@victim-company.com" class="w-full bg-black/40 rounded-xl p-3.5 text-xs font-mono border border-white/10 focus:border-cyan-400 outline-none transition">
@@ -993,11 +1042,18 @@
       const fl = document.getElementById('fileInput');
       const lb = document.getElementById('fileLabel');
       const nt = document.getElementById('importNotice');
+      const pill = document.getElementById('fileStatusPill');
+      const scanBtn = document.getElementById('scanBtn');
       if (eb) eb.value = '';
       if (fi) fi.value = '';
       if (fl) fl.value = '';
-      if (lb) lb.innerText = 'Drop .eml / text file or click to browse';
+      if (lb) lb.innerText = 'DRAG & DROP .EML EMAIL HERE';
+      if (pill) pill.classList.add('hidden');
       if (nt) nt.classList.add('hidden');
+      if (scanBtn) {
+        scanBtn.innerHTML = '<i class="fa-solid fa-bolt"></i><span>RUN FORENSIC DEEP SCAN</span>';
+        scanBtn.classList.remove('animate-pulse');
+      }
       updateFileTelemetry(0, 0, 'IDLE');
     }
 
@@ -1274,7 +1330,7 @@
         // Trigger 3D sliding animation for the text file document deck
         const lines = (data.content.match(/\n/g) || []).length + 1;
         triggerTextFileSlide3D(filename, data.content.length, lines);
-
+        switchInputMode('paste');
 
         // Sync dropdown
         const sel = document.getElementById('sampleSelect');
@@ -1919,11 +1975,81 @@
       console.warn('Globe.gl initialization deferred:', e);
     }
 
-    // 6. File Reading, Drag-and-Drop & 3D Tilt Handlers
+    // 6. Ingestion Switcher, File Reading & Drag-and-Drop Handlers
+    function switchInputMode(mode) {
+      const uploadSec = document.getElementById('sectionUpload');
+      const pasteSec = document.getElementById('sectionPaste');
+      const samplesSec = document.getElementById('sectionSamples');
+      
+      const tabUpload = document.getElementById('inputTabUpload');
+      const tabPaste = document.getElementById('inputTabPaste');
+      const tabSamples = document.getElementById('inputTabSamples');
+
+      const activeClasses = ['bg-gradient-to-r', 'from-cyan-500', 'to-blue-600', 'text-black', 'shadow-md', 'shadow-cyan-500/20', 'font-bold'];
+      const inactiveClasses = ['opacity-60', 'hover:opacity-100', 'text-slate-300', 'font-medium'];
+
+      [tabUpload, tabPaste, tabSamples].forEach(t => {
+        if (t) {
+          t.classList.remove(...activeClasses);
+          t.classList.add(...inactiveClasses);
+        }
+      });
+
+      if (uploadSec) uploadSec.classList.add('hidden');
+      if (pasteSec) pasteSec.classList.add('hidden');
+      if (samplesSec) samplesSec.classList.add('hidden');
+
+      if (mode === 'upload') {
+        if (uploadSec) uploadSec.classList.remove('hidden');
+        if (tabUpload) {
+          tabUpload.classList.remove(...inactiveClasses);
+          tabUpload.classList.add(...activeClasses);
+        }
+      } else if (mode === 'paste') {
+        if (pasteSec) pasteSec.classList.remove('hidden');
+        if (tabPaste) {
+          tabPaste.classList.remove(...inactiveClasses);
+          tabPaste.classList.add(...activeClasses);
+        }
+      } else if (mode === 'samples') {
+        if (samplesSec) samplesSec.classList.remove('hidden');
+        if (tabSamples) {
+          tabSamples.classList.remove(...inactiveClasses);
+          tabSamples.classList.add(...activeClasses);
+        }
+      }
+    }
+
+    function triggerFileInputClick() {
+      switchInputMode('upload');
+      const scanEl = document.getElementById('scan');
+      if (scanEl) {
+        scanEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      setTimeout(() => {
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput) fileInput.click();
+      }, 350);
+    }
+
     function ingestFileInto3DConsole(file) {
+      if (!file) return;
       const lb = document.getElementById('fileLabel');
       if (lb) lb.innerText = 'Attached: ' + file.name;
-      
+
+      const pill = document.getElementById('fileStatusPill');
+      const pillText = document.getElementById('fileStatusPillText');
+      if (pill && pillText) {
+        pillText.innerText = `File Attached: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+        pill.classList.remove('hidden');
+      }
+
+      const scanBtn = document.getElementById('scanBtn');
+      if (scanBtn) {
+        scanBtn.innerHTML = `<i class="fa-solid fa-bolt"></i><span>ANALYZE: ${file.name.slice(0, 24)}</span>`;
+        scanBtn.classList.add('animate-pulse');
+      }
+
       const reader = new FileReader();
       reader.onload = (event) => {
         const content = event.target.result || '';
@@ -1951,20 +2077,21 @@
       });
     }
 
+    // Dropzone listeners on the console drop box
     const dropZone = document.getElementById('dropZone');
     if (dropZone) {
       ['dragenter', 'dragover'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
           e.preventDefault();
           e.stopPropagation();
-          dropZone.classList.add('drag-over');
+          dropZone.classList.add('border-cyan-300', 'bg-cyan-900/60');
         }, false);
       });
       ['dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
           e.preventDefault();
           e.stopPropagation();
-          dropZone.classList.remove('drag-over');
+          dropZone.classList.remove('border-cyan-300', 'bg-cyan-900/60');
         }, false);
       });
       dropZone.addEventListener('drop', (e) => {
@@ -1977,6 +2104,51 @@
         }
       });
     }
+
+    // Global Window Fullscreen Drag-and-Drop HUD Overlay
+    let dragCounter = 0;
+    const globalDropOverlay = document.getElementById('globalDropOverlay');
+
+    window.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dragCounter++;
+      if (globalDropOverlay) {
+        globalDropOverlay.classList.remove('pointer-events-none', 'opacity-0');
+        globalDropOverlay.classList.add('opacity-100');
+      }
+    });
+
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+
+    window.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter <= 0 && globalDropOverlay) {
+        dragCounter = 0;
+        globalDropOverlay.classList.add('opacity-0', 'pointer-events-none');
+        globalDropOverlay.classList.remove('opacity-100');
+      }
+    });
+
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      if (globalDropOverlay) {
+        globalDropOverlay.classList.add('opacity-0', 'pointer-events-none');
+        globalDropOverlay.classList.remove('opacity-100');
+      }
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        const input = document.getElementById('fileInput');
+        if (input) input.files = e.dataTransfer.files;
+        switchInputMode('upload');
+        const scanEl = document.getElementById('scan');
+        if (scanEl) scanEl.scrollIntoView({ behavior: 'smooth' });
+        ingestFileInto3DConsole(file);
+      }
+    });
 
     // Interactive 3D Mouse Parallax Tilt on Text File Deck
     const textDeckEl = document.getElementById('textFileDeck');
