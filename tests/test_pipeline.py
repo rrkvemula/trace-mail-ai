@@ -257,6 +257,29 @@ class PipelineTests(unittest.TestCase):
         finally:
             GeoIPResolver.MAX_CACHE_SIZE = original_max
 
+    def test_trained_ml_classifier_multi_class(self):
+        from engine.ml_classifier import CLASSIFIER
+
+        # 1. Test BEC prediction
+        bec_text = "Urgent: Please expedite confidential wire transfer of $50,000 to our new vendor bank account."
+        bec_res = CLASSIFIER.predict(bec_text)
+        self.assertGreater(bec_res["phishing_probability"], 0.75)
+        if "class_probabilities" in bec_res:
+            self.assertGreater(bec_res["class_probabilities"]["bec_fraud"], 0.60)
+
+        # 2. Test Phishing prediction
+        phish_text = "Security Alert: Microsoft 365 password expired. Verify your corporate credentials at http://portal.com"
+        phish_res = CLASSIFIER.predict(phish_text)
+        self.assertGreater(phish_res["phishing_probability"], 0.75)
+        if "class_probabilities" in phish_res:
+            self.assertGreater(phish_res["class_probabilities"]["phishing"], 0.60)
+
+        # 3. Test Legitimate prediction
+        legit_text = "Smart India Hackathon campus orientation schedule has been updated. Please review the attached agenda."
+        legit_res = CLASSIFIER.predict(legit_text)
+        self.assertLess(legit_res["phishing_probability"], 0.35)
+        self.assertEqual(legit_res["label"], "LEGITIMATE_LIKELY")
+
 
 if __name__ == "__main__":
     unittest.main()

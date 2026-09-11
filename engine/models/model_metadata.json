@@ -1,0 +1,55 @@
+{
+  "model_type": "TF-IDF + Calibrated Logistic Regression",
+  "accuracy": 1.0,
+  "classes": [
+    "LEGITIMATE",
+    "PHISHING",
+    "BEC_FRAUD"
+  ],
+  "num_features": 2129,
+  "num_samples": 1245,
+  "top_class_indicators": {
+    "legitimate": [
+      "the",
+      "is",
+      "next",
+      "campus",
+      "review",
+      "hr",
+      "for your",
+      "00",
+      "main",
+      "the main",
+      "network",
+      "all"
+    ],
+    "phishing": [
+      "http",
+      "your",
+      "credentials",
+      "at http",
+      "your corporate",
+      "credentials to",
+      "identity",
+      "verify",
+      "refund",
+      "document",
+      "employee",
+      "click"
+    ],
+    "bec_fraud": [
+      "our",
+      "wire",
+      "my",
+      "wire transfer",
+      "confidential",
+      "to our",
+      "transfer",
+      "please",
+      "immediately",
+      "need",
+      "account at",
+      "bank"
+    ]
+  }
+}
