@@ -405,6 +405,28 @@ class EmailParser:
         combined_text = plain_text + " " + html_text
         found_links = list(set(self.URL_PATTERN.findall(combined_text)))
 
+        # Extract HTML anchor tags to detect visual link spoofing / anchor-href mismatch
+        link_spoof_detections = []
+        if html_text:
+            anchor_pattern = re.compile(r'<a\s+(?:[^>]*?\s+)?href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL)
+            for m in anchor_pattern.finditer(html_text):
+                href_url = m.group(1).strip()
+                raw_anchor = re.sub(r'<[^>]+>', '', m.group(2)).strip()
+                anchor_url_match = re.search(r'(?:https?://)?([a-zA-Z0-9][a-zA-Z0-9\-]*\.[a-zA-Z]{2,}(?:/[^\s]*)?)', raw_anchor)
+                if anchor_url_match and href_url.startswith(("http://", "https://")):
+                    displayed_domain = anchor_url_match.group(1).split('/')[0].lower()
+                    try:
+                        dest_domain = (re.search(r'https?://([^/:\s]+)', href_url).group(1) if re.search(r'https?://([^/:\s]+)', href_url) else "").lower()
+                        if displayed_domain and dest_domain and not (displayed_domain == dest_domain or dest_domain.endswith("." + displayed_domain) or displayed_domain.endswith("." + dest_domain)):
+                            link_spoof_detections.append({
+                                "displayed_text": raw_anchor,
+                                "displayed_domain": displayed_domain,
+                                "actual_url": href_url,
+                                "destination_domain": dest_domain
+                            })
+                    except Exception:
+                        pass
+
         extracted_plain = plain_text.strip()
         # Fall back to stripped HTML if no text/plain body was provided (critical for HTML-only phishing & ML inference)
         if not extracted_plain and html_text.strip():
@@ -418,6 +440,7 @@ class EmailParser:
             "plain_text": extracted_plain,
             "has_html": bool(html_text),
             "links": found_links,
+            "link_spoofs": link_spoof_detections,
             "total_links": len(found_links)
         }
 

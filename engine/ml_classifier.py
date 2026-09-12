@@ -84,23 +84,23 @@ STOPWORDS = {
 
 MODEL_CARD = {
     "model_name": "TraceMail Advisory Text Threat Signal",
-    "status": "EXPERIMENTAL_TEXT_SIGNAL",
-    "role": "Advisory semantic & lexical probability estimation (non-authoritative heuristic)",
+    "status": "SYNTHETIC_TEMPLATE_BASELINE",
+    "role": "Advisory semantic & lexical probability estimation (non-authoritative heuristic baseline)",
     "architecture": "DistilBERT Sequence Classifier (ONNX INT8 Quantized) / TF-IDF Calibrated Logistic Regression",
-    "training_corpus": "Curated 3,045 samples (SpamAssassin, Enron BEC subsets, synthetic phishing/legitimate)",
-    "dataset_split": "70% Train / 15% Validation / 15% Test",
+    "training_corpus": "Synthetic template-generated corpus (3,045 samples generated via training/corpus_generator.py)",
+    "dataset_split": "70% Train / 15% Validation / 15% Test (slot-filling synthetic permutations)",
     "metrics": {
-        "precision_phishing": 0.88,
-        "recall_phishing": 0.84,
-        "false_positive_rate_legit": 0.042,
-        "f1_score": 0.86
+        "synthetic_test_accuracy": 1.0,
+        "synthetic_macro_f1": 1.0,
+        "wild_generalization_status": "UNVALIDATED_ON_WILD_CORPUS"
     },
     "calibration": "Platt Sigmoid / Logistic Log-Loss Calibrated",
     "limitations": [
-        "Advisory only: ML scores cannot create authentic forensic evidence or prove compromise on their own.",
-        "May flag urgent legitimate business communications (e.g. invoices, payroll notices).",
-        "Susceptible to adversarial prompt evasion or image-only payload bodies.",
-        "Requires multi-factor correlation against RFC 5322 headers before high-risk categorization."
+        "Synthetic Baseline: Trained purely on synthetic slot-filling templates; test accuracy of 1.0 reflects template memorization rather than wild generalization.",
+        "Not evaluated against historical wild corpora (SpamAssassin, Nazario, Enron); out-of-distribution real-world variance will degrade accuracy.",
+        "Advisory only: Text ML predictions cannot create authentic forensic evidence or prove compromise on their own.",
+        "Susceptible to adversarial prompt injection, zero-width space evasion, or image-only payload bodies.",
+        "Requires multi-factor corroboration against RFC 5322 headers before high-risk categorization."
     ]
 }
 
@@ -237,8 +237,8 @@ class ProductionTextClassifier:
                     "phishing_probability": round(threat_prob, 4),
                     "matched_indicators": indicators,
                     "algorithm": algo_name,
-                    "training_source": "Curated 3,045-sample corpus (Legitimate, Phishing, BEC)",
-                    "validation_status": "EXPERIMENTAL_TEXT_SIGNAL",
+                    "training_source": "Synthetic 3,045-sample template corpus (Slot-filled permutations)",
+                    "validation_status": "SYNTHETIC_TEMPLATE_BASELINE",
                     "model_card": MODEL_CARD,
                     "class_probabilities": {
                         "legitimate": round(p_legit, 4),
@@ -288,8 +288,8 @@ class ProductionTextClassifier:
                     "phishing_probability": round(threat_prob, 4),
                     "matched_indicators": indicators,
                     "algorithm": "TF-IDF + Calibrated Multi-Class Logistic Regression",
-                    "training_source": "Curated 3,045-sample corpus (Legitimate, Phishing, BEC)",
-                    "validation_status": "EXPERIMENTAL_TEXT_SIGNAL",
+                    "training_source": "Synthetic 3,045-sample template corpus (Slot-filled permutations)",
+                    "validation_status": "SYNTHETIC_TEMPLATE_BASELINE",
                     "model_card": MODEL_CARD,
                     "class_probabilities": {
                         "legitimate": round(p_legit, 4),
@@ -338,8 +338,8 @@ class ProductionTextClassifier:
             "phishing_probability": round(probability, 4),
             "matched_indicators": indicators,
             "algorithm": "MULTINOMIAL_NAIVE_BAYES" if is_fallback else "TF-IDF + Calibrated Logistic Regression",
-            "training_source": "Bundled demonstration corpus (32 labelled phrases)" if is_fallback else "Curated 3,045-sample corpus (Legitimate, Phishing, BEC)",
-            "validation_status": "EXPERIMENTAL_TEXT_SIGNAL",
+            "training_source": "Bundled demonstration corpus (32 labelled phrases)" if is_fallback else "Synthetic 3,045-sample template corpus (Slot-filled permutations)",
+            "validation_status": "SYNTHETIC_TEMPLATE_BASELINE",
             "model_card": MODEL_CARD,
         }
 

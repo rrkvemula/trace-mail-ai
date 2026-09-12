@@ -156,7 +156,37 @@ class FeedbackRequest(BaseModel):
     notes: Optional[str] = None
 
 
-USER_ALLOWLIST: set = set()
+FREE_CONSUMER_PROVIDERS = {
+    "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "outlook.com",
+    "hotmail.com", "live.com", "msn.com", "aol.com", "proton.me", "protonmail.com",
+    "icloud.com", "me.com", "mac.com", "zoho.com", "mail.com"
+}
+
+
+def load_allowlist_from_disk() -> set:
+    """Loads analyst allowlist rules persisted to disk across deployments."""
+    allowlist = set()
+    feedback_path = os.path.join(DATA_DIR, "user_feedback.jsonl")
+    if os.path.exists(feedback_path):
+        try:
+            with open(feedback_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    entry = json.loads(line)
+                    if entry.get("feedback_type") == "ALLOWLIST_SENDER":
+                        sender = (entry.get("sender_email") or "").strip().lower()
+                        dom = (entry.get("sender_domain") or "").strip().lower()
+                        if sender:
+                            allowlist.add(sender)
+                        if dom and dom not in FREE_CONSUMER_PROVIDERS:
+                            allowlist.add(dom)
+        except Exception:
+            pass
+    return allowlist
+
+
+USER_ALLOWLIST: set = load_allowlist_from_disk()
 
 
 def remember_analysis(report: dict) -> None:
@@ -581,7 +611,7 @@ async def scan(
 
     try:
         # Run through single source of truth: ForensicPipeline (offloaded to threadpool to prevent event-loop starvation)
-        report = await run_in_threadpool(ForensicPipeline.process_raw_email, content)
+        report = await run_in_threadpool(ForensicPipeline.process_raw_email, content, USER_ALLOWLIST)
         analysis_id = f"ANL-{uuid.uuid4().hex[:12].upper()}"
         report["analysis_id"] = analysis_id
         analyst_name = request.headers.get("X-Analyst-Identity", "Anonymous SOC Analyst")
@@ -640,7 +670,7 @@ async def analyze_email(
         raise HTTPException(status_code=413, detail="Email exceeds the 5 MB prototype limit")
 
     try:
-        report = await run_in_threadpool(ForensicPipeline.process_raw_email, content)
+        report = await run_in_threadpool(ForensicPipeline.process_raw_email, content, USER_ALLOWLIST)
         report["analysis_id"] = f"ANL-{uuid.uuid4().hex[:12].upper()}"
         report["input_metadata"] = {
             "filename": filename,

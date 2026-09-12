@@ -29,9 +29,9 @@ class ThreatScorer:
 
     # Independent authentic forensic evidence classes (Excludes advisory ML and generic keywords)
     EVIDENCE_CLASSES = {
-        "CRYPTO_AUTH": {"DMARC_FAIL", "SPF_FAIL", "FORGED_OR_UNTRUSTED_AUTHSERV"},
+        "CRYPTO_AUTH": {"DMARC_FAIL", "SPF_FAIL", "FORGED_OR_UNTRUSTED_AUTHSERV", "RECEIVER_PASS_CRYPTO_MISMATCH", "DKIM_CRYPTO_FAILED"},
         "IDENTITY_ROUTING": {"DISPLAY_NAME_SPOOFING", "REPLY_TO_ORG_MISMATCH", "REVERSED_TIMING_ANOMALY"},
-        "INFRA_URL": {"SSRF_INTERNAL_TARGET", "PUNYCODE_LOOKALIKE", "IP_LITERAL_URL", "SUSPICIOUS_URL"},
+        "INFRA_URL": {"SSRF_INTERNAL_TARGET", "PUNYCODE_LOOKALIKE", "IP_LITERAL_URL", "SUSPICIOUS_URL", "HOMOGLYPH_BRAND_IMPERSONATION", "MIXED_SCRIPT_HOMOGLYPH", "LINK_TARGET_MISMATCH", "INVISIBLE_CHAR_OBFUSCATION"},
         "PAYLOAD_SECURITY": {"WEAPONIZED_ATTACHMENT", "DOUBLE_EXTENSION_DECEPTION", "MIME_EXTENSION_MISMATCH"},
         "BEC_FINANCIAL_FRAUD": {"BEC_VENDOR_FINANCIAL_DIVERSION", "BEC_VERIFICATION_EVASION"},
     }
@@ -41,16 +41,19 @@ class ThreatScorer:
         parsed_email: Dict[str, Any],
         auth_results: Dict[str, Any],
         hop_results: Dict[str, Any],
-        ml_result: Dict[str, Any] = None
+        ml_result: Dict[str, Any] = None,
+        allowlist: Optional[Set[str]] = None
     ):
         self.parsed = parsed_email
         self.auth = auth_results
         self.hop = hop_results
         self.ml_result = ml_result or {}
+        self.allowlist = {s.lower().strip() for s in (allowlist or set()) if s}
         self.score = 0.0
         self.confidence = 85.0
         self.factors: List[Dict[str, Any]] = []
         self.detections: List[str] = []
+        self.headers = parsed_email.get("headers", {})
 
     def calculate(self) -> Dict[str, Any]:
         """Calculates total score, calibrated confidence, and builds explainability breakdown."""
@@ -66,7 +69,7 @@ class ThreatScorer:
         self._score_links_and_attachments()
 
         # Invariant Protection: If the message exhibits severe BEC financial diversion,
-        # impersonation, or dangerous links, do NOT allow reported auth passes to suppress risk.
+        # impersonation, dangerous links, or crypto tampering, do NOT allow reported auth passes to suppress risk.
         # This protects against Account Takeover (ATO) and forged Authentication-Results.
         auth_discount_eligible = composite_pass and not any(d in self.detections for d in [
             "BEC_VENDOR_FINANCIAL_DIVERSION",
@@ -74,8 +77,12 @@ class ThreatScorer:
             "DISPLAY_NAME_SPOOFING",
             "SSRF_INTERNAL_TARGET",
             "PUNYCODE_LOOKALIKE",
+            "HOMOGLYPH_BRAND_IMPERSONATION",
+            "MIXED_SCRIPT_HOMOGLYPH",
+            "LINK_TARGET_MISMATCH",
             "WEAPONIZED_ATTACHMENT",
-            "FORGED_OR_UNTRUSTED_AUTHSERV"
+            "FORGED_OR_UNTRUSTED_AUTHSERV",
+            "RECEIVER_PASS_CRYPTO_MISMATCH"
         ])
 
         self._score_linguistic_urgency(crypto_authenticated=auth_discount_eligible)
@@ -150,6 +157,57 @@ class ThreatScorer:
             color = "#4ADE80"  # Green
             verdict = "LOW OBSERVED RISK — NOT A SAFETY GUARANTEE"
             enforcement = "MONITOR" if is_unverified else "ALLOW"
+        # 4. Scoped Allowlist Policy Evaluation (P1 Fix)
+        # Allows exact sender emails; allows domains only if cryptographically authenticated.
+        # CRITICAL SAFETY INVARIANT: NEVER suppresses weaponized attachments or SSRF targets!
+        from_hdr = str(self.headers.get("from", "")).lower()
+        sender_email_match = re.search(r'[\w\.-]+@[\w\.-]+', from_hdr)
+        sender_email = sender_email_match.group(0) if sender_email_match else ""
+        sender_domain = (self.auth.get("sender_domain") or "").lower()
+
+        is_allowlisted = False
+        allowlist_reason = ""
+        if self.allowlist:
+            if sender_email and sender_email in self.allowlist:
+                is_allowlisted = True
+                allowlist_reason = f"Exact sender email '{sender_email}' is allowlisted by analyst policy."
+            elif sender_domain and sender_domain in self.allowlist:
+                if composite_pass or self.auth.get("evidence_status") in ["INDEPENDENTLY_VERIFIED_PASS", "RECEIVER_REPORTED_PASS"]:
+                    is_allowlisted = True
+                    allowlist_reason = f"Cryptographically verified domain '@{sender_domain}' is allowlisted by analyst policy."
+                else:
+                    self.factors.append({
+                        "category": "ALLOWLIST_POLICY",
+                        "impact": "Allowlist Inactive (0 pts)",
+                        "severity": "WARNING",
+                        "detail": f"Domain '@{sender_domain}' matches allowlist, but authentication failed or is unverified (spoofing protection)."
+                    })
+
+        has_critical_payload = any(d in self.detections for d in [
+            "WEAPONIZED_ATTACHMENT", "DOUBLE_EXTENSION_DECEPTION", "MIME_EXTENSION_MISMATCH", "SSRF_INTERNAL_TARGET"
+        ])
+
+        if is_allowlisted:
+            if has_critical_payload:
+                self.factors.append({
+                    "category": "ALLOWLIST_POLICY",
+                    "impact": "Allowlist Bypassed (+0 pts)",
+                    "severity": "CRITICAL",
+                    "detail": f"Allowlist bypassed: dangerous executable payload or internal SSRF target detected despite allowlist ({allowlist_reason})."
+                })
+            else:
+                final_score = 0.0
+                category = "LOW_OBSERVED_RISK"
+                color = "#4ADE80"
+                verdict = "ALLOWLISTED SENDER — TRUSTED POLICY APPLIED"
+                enforcement = "ALLOW"
+                evidence_strength = "LOW"
+                self.factors.append({
+                    "category": "ALLOWLIST_POLICY",
+                    "impact": "Score Suppressed to 0",
+                    "severity": "BENIGN",
+                    "detail": allowlist_reason
+                })
 
         limitations = [
             "Receiver-reported cryptographic status depends on boundary MTA integrity.",
@@ -182,7 +240,16 @@ class ThreatScorer:
         dmarc_aligned = self.auth.get("dmarc", {}).get("dkim_aligned", False) or self.auth.get("dmarc", {}).get("spf_aligned", False)
         evidence_status = self.auth.get("evidence_status", "")
 
-        if evidence_status == "FORGED_OR_UNTRUSTED_AUTHSERV":
+        if evidence_status in ["RECEIVER_PASS_CRYPTO_MISMATCH", "DKIM_CRYPTO_FAILED"]:
+            self.score += 45.0
+            self.detections.append("RECEIVER_PASS_CRYPTO_MISMATCH")
+            self.factors.append({
+                "category": "AUTHENTICATION",
+                "impact": "+45 pts (Critical Crypto Conflict)",
+                "severity": "CRITICAL",
+                "detail": "Severe cryptographic mismatch: Receiver MTA reported DKIM pass, but independent RFC 6376 verification failed against DNS public key. Tampered body/headers or forged receiver report."
+            })
+        elif evidence_status == "FORGED_OR_UNTRUSTED_AUTHSERV":
             self.score += 30.0
             self.detections.append("FORGED_OR_UNTRUSTED_AUTHSERV")
             self.factors.append({
@@ -356,6 +423,36 @@ class ThreatScorer:
                     "detail": f"Link targets cloud metadata or internal network address: {l.get('hostname')}"
                 })
                 break
+            elif l.get("is_homoglyph_brand"):
+                self.score += 50.0
+                self.detections.append("HOMOGLYPH_BRAND_IMPERSONATION")
+                self.factors.append({
+                    "category": "URL_REPUTATION",
+                    "impact": "+50 pts (Critical Homoglyph)",
+                    "severity": "CRITICAL",
+                    "detail": f"Visual homoglyph brand impersonation targeting '{l.get('impersonated_brand')}': {l.get('hostname')} (Skeleton: {l.get('skeleton_hostname')})"
+                })
+                break
+            elif l.get("is_mixed_script"):
+                self.score += 40.0
+                self.detections.append("MIXED_SCRIPT_HOMOGLYPH")
+                self.factors.append({
+                    "category": "URL_REPUTATION",
+                    "impact": "+40 pts (Mixed-Script IDN)",
+                    "severity": "CRITICAL",
+                    "detail": f"Mixed-script domain label detected violating RFC 5890: {l.get('hostname')}"
+                })
+                break
+            elif l.get("has_invisible_chars"):
+                self.score += 30.0
+                self.detections.append("INVISIBLE_CHAR_OBFUSCATION")
+                self.factors.append({
+                    "category": "URL_REPUTATION",
+                    "impact": "+30 pts (Zero-Width Evasion)",
+                    "severity": "HIGH",
+                    "detail": f"Zero-width or invisible Unicode characters detected in URL: {l.get('hostname')}"
+                })
+                break
             elif l.get("punycode"):
                 self.score += 25.0
                 self.detections.append("PUNYCODE_LOOKALIKE")
@@ -386,6 +483,19 @@ class ThreatScorer:
                     "detail": f"Suspicious URL characteristics: {', '.join(l.get('risk_reasons', []))[:80]}"
                 })
                 break
+
+        # Visual Link Deception: Anchor text displays brand/domain but href points elsewhere
+        link_spoofs = self.parsed.get("body", {}).get("link_spoofs", [])
+        for sp in link_spoofs:
+            self.score += 45.0
+            self.detections.append("LINK_TARGET_MISMATCH")
+            self.factors.append({
+                "category": "URL_REPUTATION",
+                "impact": "+45 pts (Visual Link Deception)",
+                "severity": "CRITICAL",
+                "detail": f"HTML anchor spoofing: Displayed link claims '{sp.get('displayed_domain')}' but actual destination is '{sp.get('destination_domain')}' ({sp.get('actual_url')[:60]})."
+            })
+            break
 
         # Attachments inspection (e.g. .exe, .scr, .iso, .vbs, double-extensions, MIME mismatch)
         dangerous_exts = [".exe", ".scr", ".iso", ".vbs", ".bat", ".hta", ".docm", ".xlsm", ".cmd", ".ps1", ".wsf", ".cpl", ".jar"]

@@ -295,7 +295,7 @@ class PipelineTests(unittest.TestCase):
         from engine.ml_classifier import CLASSIFIER
         res = CLASSIFIER.predict("Urgent: wire transfer of $10,000 required immediately.")
         self.assertIn("ONNX", res.get("algorithm", ""))
-        self.assertEqual(res.get("validation_status"), "EXPERIMENTAL_TEXT_SIGNAL")
+        self.assertEqual(res.get("validation_status"), "SYNTHETIC_TEMPLATE_BASELINE")
         self.assertIn("model_card", res)
         self.assertIn("bec_fraud", res.get("class_probabilities", {}))
         self.assertGreater(res["class_probabilities"]["bec_fraud"], 0.70)
@@ -468,27 +468,57 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("limitations", audit)
 
     def test_model_card_and_experimental_signal(self):
-        """Verifies that the ML classifier provides an honest EXPERIMENTAL_TEXT_SIGNAL and comprehensive model card."""
+        """Verifies that the ML classifier provides an honest SYNTHETIC_TEMPLATE_BASELINE and comprehensive model card."""
         from engine.ml_classifier import CLASSIFIER
         pred = CLASSIFIER.predict("Hello, checking in on the project deliverables.")
-        self.assertEqual(pred.get("validation_status"), "EXPERIMENTAL_TEXT_SIGNAL")
+        self.assertEqual(pred.get("validation_status"), "SYNTHETIC_TEMPLATE_BASELINE")
         self.assertIn("model_card", pred)
         card = pred["model_card"]
-        self.assertEqual(card.get("status"), "EXPERIMENTAL_TEXT_SIGNAL")
+        self.assertEqual(card.get("status"), "SYNTHETIC_TEMPLATE_BASELINE")
         self.assertIn("limitations", card)
 
     def test_internal_same_domain_authserv_is_trusted(self):
-        """Ensures that internal same-domain mail with matching authserv-id is trusted rather than marked forged."""
+        """Ensures that internal same-domain mail with matching authserv-id is trusted when corroborated by observed receiving MTA."""
         from engine.auth_validator import AuthValidator
         headers = {
             "from": "hr@mycorp.com",
             "to": "employee@mycorp.com",
             "authentication_results": ["mycorp.com; spf=pass; dkim=pass; dmarc=pass"]
         }
-        validator = AuthValidator(headers)
+        hops = [{"by_mta": "mail.mycorp.com (Postfix)"}]
+        validator = AuthValidator(headers, hops=hops)
         audit = validator.audit()
         self.assertTrue(audit.get("is_trusted_authserv"))
         self.assertIn("Internal domain authority", audit["authserv_evaluation"].get("reason", ""))
+
+    def test_authserv_attacker_to_header_spoof_rejected(self):
+        """Ensures that an external attacker cannot bypass authserv trust by setting To: header to match their domain (P0-3 Fix)."""
+        from engine.auth_validator import AuthValidator
+        headers = {
+            "from": "ceo@attacker.com",
+            "to": "victim@attacker.com",
+            "authentication_results": ["attacker.com; spf=pass; dkim=pass; dmarc=pass"]
+        }
+        # Observed hop is Google or external provider, NOT attacker.com
+        hops = [{"by_mta": "mx.google.com"}]
+        validator = AuthValidator(headers, hops=hops)
+        audit = validator.audit()
+        self.assertFalse(audit.get("is_trusted_authserv"))
+        self.assertEqual(audit.get("evidence_status"), "FORGED_OR_UNTRUSTED_AUTHSERV")
+
+    def test_authserv_attacker_no_hops_to_header_spoof_rejected(self):
+        """Ensures that an attacker cannot bypass authserv trust in an email without hops by setting To: domain to match From: (P0-3 Fix)."""
+        from engine.auth_validator import AuthValidator
+        headers = {
+            "from": "ceo@attacker.com",
+            "to": "victim@attacker.com",
+            "authentication_results": ["attacker.com; spf=pass; dkim=pass; dmarc=pass"]
+        }
+        # No hops provided at all
+        validator = AuthValidator(headers, hops=[])
+        audit = validator.audit()
+        self.assertFalse(audit.get("is_trusted_authserv"))
+        self.assertEqual(audit.get("evidence_status"), "FORGED_OR_UNTRUSTED_AUTHSERV")
 
     def test_double_extension_attachment_detection(self):
         """Ensures that dangerous double extensions (e.g. invoice.pdf.exe) trigger high-severity alert."""
@@ -520,17 +550,119 @@ class PipelineTests(unittest.TestCase):
         res = scorer.calculate()
         self.assertIn("MIME_EXTENSION_MISMATCH", res.get("detections", []))
 
-    def test_independent_dkim_verification_rfc6376(self):
-        """Verifies that authentic signed Tata email receives INDEPENDENTLY_VERIFIED_PASS via dkimpy."""
-        tata_path = "/home/rkvemula/Downloads/Final Call_ Tata is Hiring _ Work with the Tata Group.eml"
-        if os.path.exists(tata_path):
-            with open(tata_path, "rb") as f:
-                eml_bytes = f.read()
-            report = ForensicPipeline.process_raw_email(eml_bytes)
-            auth = report.get("authentication", {})
-            self.assertEqual(auth.get("evidence_status"), "INDEPENDENTLY_VERIFIED_PASS")
-            self.assertTrue(auth.get("dkim", {}).get("independently_verified"))
-            self.assertEqual(auth.get("dkim", {}).get("independent_status"), "DKIM_INDEPENDENTLY_VERIFIED")
+    def test_deterministic_dkim_verification_and_conflict_states(self):
+        """Deterministic CI-portable test for independent DKIM passes, crypto-fail conflicts, and DNS outages (P0-1 & P0-2 Fix)."""
+        from unittest.mock import patch
+        from engine.auth_validator import AuthValidator
+
+        headers = {
+            "from": "notifications@verified.org",
+            "to": "user@example.com",
+            "authentication_results": ["mx.google.com; dkim=pass header.i=@verified.org header.s=s1; spf=pass; dmarc=pass"],
+            "dkim_signature": ["v=1; a=rsa-sha256; d=verified.org; s=s1; b=fake..."]
+        }
+        hops = [{"by_mta": "mx.google.com"}]
+        raw_eml = b"From: notifications@verified.org\r\nTo: user@example.com\r\nDKIM-Signature: v=1; d=verified.org; s=s1; b=fake\r\n\r\nHello"
+
+        # 1. Successful independent cryptographic validation
+        with patch("dkim.load_pk_from_dns", return_value=(b"fake_pk", 2048, "rsa", None)), \
+             patch("dkim.verify", return_value=True):
+            validator = AuthValidator(headers, hops=hops, raw_content=raw_eml)
+            audit = validator.audit()
+            self.assertEqual(audit.get("evidence_status"), "INDEPENDENTLY_VERIFIED_PASS")
+            self.assertTrue(audit.get("dkim", {}).get("independently_verified"))
+
+        # 2. Critical Crypto Mismatch: Receiver said pass, but independent crypto fails (tampering/forgery)
+        with patch("dkim.load_pk_from_dns", return_value=(b"fake_pk", 2048, "rsa", None)), \
+             patch("dkim.verify", return_value=False):
+            validator = AuthValidator(headers, hops=hops, raw_content=raw_eml)
+            audit = validator.audit()
+            self.assertEqual(audit.get("evidence_status"), "RECEIVER_PASS_CRYPTO_MISMATCH")
+            self.assertEqual(audit.get("overall_status"), "CRYPTO_MISMATCH_OR_TAMPERED")
+            self.assertFalse(audit.get("composite_pass"))
+
+        # 3. DNS/Key Unavailable: Key missing from DNS
+        import dkim
+        with patch("dkim.load_pk_from_dns", side_effect=dkim.KeyFormatError("missing public key")):
+            validator = AuthValidator(headers, hops=hops, raw_content=raw_eml)
+            audit = validator.audit()
+            self.assertEqual(audit.get("evidence_status"), "RECEIVER_REPORTED_PASS_KEY_UNAVAILABLE")
+            self.assertEqual(audit.get("dkim", {}).get("independent_status"), "DKIM_KEY_MISSING")
+
+    def test_scoped_allowlist_suppresses_noise_but_not_weaponized_payload(self):
+        """Verifies that scoped allowlist suppresses noise for trusted senders, but NEVER suppresses weaponized payloads (P1 Fix)."""
+        from engine.threat_scorer import ThreatScorer
+
+        # Scenario A: Benign mail from allowlisted exact sender
+        parsed_benign = {
+            "headers": {"from": "billing@trusted-vendor.com", "to": "finance@corp.com", "subject": "Urgent wire payment update"},
+            "body": {"plain_text": "Please process payment urgently."},
+            "attachments": []
+        }
+        auth_pass = {"composite_pass": True, "sender_domain": "trusted-vendor.com", "evidence_status": "RECEIVER_REPORTED_PASS"}
+        hop_clean = {"has_timing_anomalies": False, "analyzed_hops": []}
+        allowlist = {"billing@trusted-vendor.com"}
+
+        scorer = ThreatScorer(parsed_benign, auth_pass, hop_clean, allowlist=allowlist)
+        res = scorer.calculate()
+        self.assertEqual(res.get("threat_score"), 0.0)
+        self.assertEqual(res.get("enforcement_action"), "ALLOW")
+
+        # Scenario B: Mail from allowlisted sender carrying weaponized attachment (.pdf.exe)
+        parsed_malicious = {
+            "headers": {"from": "billing@trusted-vendor.com", "to": "finance@corp.com", "subject": "Invoice"},
+            "body": {"plain_text": "Attached is your invoice."},
+            "attachments": [{"filename": "invoice.pdf.exe", "content_type": "application/x-msdownload"}]
+        }
+        scorer_mal = ThreatScorer(parsed_malicious, auth_pass, hop_clean, allowlist=allowlist)
+        res_mal = scorer_mal.calculate()
+        # Safety Invariant: Allowlist must be bypassed!
+        self.assertGreaterEqual(res_mal.get("threat_score"), 45.0)
+        self.assertIn("WEAPONIZED_ATTACHMENT", res_mal.get("detections", []))
+        self.assertTrue(any("Allowlist bypassed" in f.get("detail", "") for f in res_mal.get("explainability_factors", [])))
+
+    def test_homoglyph_brand_impersonation_detection(self):
+        """Verifies that visual homoglyphs imitating protected brands (e.g. Cyrillic 'a' in pаypal) are caught with UTS-39."""
+        from engine.url_scanner import URLScanner
+        # Cyrillic 'а' (U+0430) inside paypal
+        spoofed_url = "https://p\u0430ypal.com/signin"
+        res = URLScanner.scan_single(spoofed_url)
+        self.assertTrue(res.get("is_homoglyph_brand"))
+        self.assertEqual(res.get("impersonated_brand"), "paypal.com")
+        self.assertTrue(res.get("suspicious"))
+
+    def test_whole_script_legitimate_idn_not_penalized(self):
+        """Ensures authentic international domains (e.g. münchen.de) do not trigger false positive homoglyph alerts."""
+        from engine.url_scanner import URLScanner
+        # Authentic German IDN
+        legit_url = "https://xn--mnchen-3ya.de/service"
+        res = URLScanner.scan_single(legit_url)
+        self.assertFalse(res.get("is_homoglyph_brand"))
+        self.assertFalse(res.get("is_mixed_script"))
+        self.assertFalse(res.get("suspicious"))
+
+    def test_html_anchor_href_mismatch_detected(self):
+        """Ensures that HTML anchor text displaying a trusted domain while linking to an attacker domain is flagged."""
+        from engine.parser import EmailParser
+        from engine.threat_scorer import ThreatScorer
+
+        html_body = '<a href="https://evil-harvest-phish.ru/login">https://chase.com/login</a>'
+        raw_eml = f"From: alert@service.com\r\nTo: victim@example.com\r\nContent-Type: text/html\r\n\r\n{html_body}"
+        parser = EmailParser(raw_eml)
+        parsed = parser.parse()
+
+        self.assertGreater(len(parsed.get("body", {}).get("link_spoofs", [])), 0)
+        spoof = parsed["body"]["link_spoofs"][0]
+        self.assertEqual(spoof.get("displayed_domain"), "chase.com")
+        self.assertEqual(spoof.get("destination_domain"), "evil-harvest-phish.ru")
+
+        # ThreatScorer calculation
+        auth = {"composite_pass": False, "is_unverified": True, "spf": {"status": "NONE"}, "dkim": {"status": "NONE"}, "dmarc": {"status": "NONE"}}
+        hop = {"has_timing_anomalies": False, "analyzed_hops": []}
+        scorer = ThreatScorer(parsed, auth, hop)
+        res = scorer.calculate()
+        self.assertIn("LINK_TARGET_MISMATCH", res.get("detections", []))
+        self.assertGreaterEqual(res.get("threat_score"), 45.0)
 
 
 if __name__ == "__main__":

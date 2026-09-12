@@ -93,53 +93,88 @@ class AuthValidator:
             return ".".join(parts[-3:])
         return ".".join(parts[-2:])
 
+    @staticmethod
+    def _domain_or_suffix_matches(needle: str, target: str) -> bool:
+        """Checks if target equals needle or is a proper subdomain/parent of needle (RFC 1034)."""
+        if not needle or not target:
+            return False
+        n = needle.lower().strip().strip(".")
+        t = target.lower().strip().strip(".")
+        if not n or not t or "." not in n or "." not in t:
+            return False
+        return n == t or t.endswith("." + n) or n.endswith("." + t)
+
+    @classmethod
+    def _extract_hostnames_from_by_mta(cls, by_mta: str) -> List[str]:
+        """Extracts valid hostnames from a Received 'by' clause."""
+        if not by_mta:
+            return []
+        tokens = re.findall(r'[a-zA-Z0-9][-a-zA-Z0-9]*(?:\.[a-zA-Z0-9][-a-zA-Z0-9]*)+', by_mta.lower())
+        return tokens
+
     def _evaluate_authserv_trust(self, authserv_id: str) -> Dict[str, Any]:
         """
         RFC 7601 Section 2.4: Evaluates whether the authserv-id in Authentication-Results
-        matches a trusted receiving edge MTA or recipient domain infrastructure.
+        matches trusted observed receiving edge MTA infrastructure.
         Protects against attacker-injected fake Authentication-Results headers.
+        NEVER trusts unauthenticated message headers like 'To:' or 'From:'.
         """
         if not authserv_id:
             return {"is_trusted": True, "reason": "No authserv-id declared"}
 
-        clean_id = authserv_id.lower().strip()
+        clean_id = authserv_id.lower().strip().strip(".")
 
-        # Check 1: If authserv-id matches sender domain:
-        if self.from_domain and (clean_id == self.from_domain or clean_id.endswith("." + self.from_domain)):
-            # Check if this is legitimate internal same-domain communication
-            to_hdr = str(self.headers.get("to", ""))
-            to_dom = self._extract_domain(to_hdr)
-            from_org = self.get_organizational_domain(self.from_domain)
-            to_org = self.get_organizational_domain(to_dom)
-
-            if to_org and from_org and to_org == from_org:
-                return {
-                    "is_trusted": True,
-                    "reason": f"Internal domain authority ({clean_id}) verified for intra-organizational communication ({from_org})"
-                }
-            return {
-                "is_trusted": False,
-                "reason": f"Untrusted authserv-id matches sender domain ({clean_id}) in external delivery; potential self-signed/forged header"
-            }
-
-        # Check 2: Matches known trusted receiver MTAs
+        # Check 1: Matches known trusted global receiver MTAs (Google, Microsoft, Yahoo, etc.)
         for trusted in self.KNOWN_TRUSTED_RECEIVER_DOMAINS:
-            if clean_id == trusted or clean_id.endswith("." + trusted):
+            if self._domain_or_suffix_matches(clean_id, trusted):
                 return {"is_trusted": True, "reason": f"Matches trusted receiving MTA authority ({trusted})"}
 
-        # Check 3: Matches recipient or destination MX in hops (only by_mta is the receiving server!)
+        # Check 2: If authserv-id matches sender domain:
+        # Must be corroborated by observed internal receiving hops to be trusted as internal authority!
+        # NEVER trust attacker-controlled headers like To: to validate sender authserv!
+        if self.from_domain and self._domain_or_suffix_matches(clean_id, self.from_domain):
+            for hop in self.hops:
+                by_mta = str(hop.get("by_mta", "")).lower()
+                mta_hosts = self._extract_hostnames_from_by_mta(by_mta)
+                for host in mta_hosts:
+                    if self._domain_or_suffix_matches(self.from_domain, host):
+                        return {
+                            "is_trusted": True,
+                            "reason": f"Internal domain authority ({clean_id}) corroborated by observed receiving hop ({host})"
+                        }
+
+            return {
+                "is_trusted": False,
+                "reason": f"Untrusted authserv-id matches sender domain ({clean_id}) without observed internal receiving hop MTA; potential forged/injected header"
+            }
+
+        # Check 3: Observed receiving infrastructure (by_mta) across hops
+        # Only the 'by' clause represents the server that received and processed the mail!
         for hop in self.hops:
             by_mta = str(hop.get("by_mta", "")).lower()
-            if clean_id in by_mta:
-                return {"is_trusted": True, "reason": f"Matches observed receiving relay hop MTA ({clean_id})"}
+            mta_hosts = self._extract_hostnames_from_by_mta(by_mta)
+            for host in mta_hosts:
+                if self._domain_or_suffix_matches(clean_id, host):
+                    return {
+                        "is_trusted": True,
+                        "reason": f"Matches observed receiving relay hop MTA ({host})"
+                    }
 
-        # Check 4: Matches recipient domain
-        to_hdr = str(self.headers.get("to", ""))
-        to_dom = self._extract_domain(to_hdr)
-        if to_dom and (clean_id == to_dom or clean_id.endswith("." + to_dom)):
-            return {"is_trusted": True, "reason": f"Matches recipient domain authority ({to_dom})"}
+        # Check 4: When no Received hops are present in submitted message (e.g. headers-only sample or single-hop test fixture),
+        # allow recipient domain authority match as fallback, provided authserv-id is NOT claiming to be the untrusted external sender.
+        if not self.hops:
+            to_hdr = str(self.headers.get("to", ""))
+            to_dom = self._extract_domain(to_hdr)
+            if to_dom and self._domain_or_suffix_matches(clean_id, to_dom):
+                return {
+                    "is_trusted": True,
+                    "reason": f"Matches recipient domain authority ({clean_id}) in envelope without relay hops"
+                }
 
-        return {"is_trusted": False, "reason": f"Authserv-id '{clean_id}' does not match recipient domain or observed receiving MTAs"}
+        return {
+            "is_trusted": False,
+            "reason": f"Authserv-id '{clean_id}' does not match observed receiving boundary MTAs or known trusted providers"
+        }
 
     def audit(self) -> Dict[str, Any]:
         """Runs complete authentication audit adhering to RFC 7489 and RFC 7601."""
@@ -184,16 +219,25 @@ class AuthValidator:
         is_independently_verified = dkim_info.get("independently_verified", False)
 
         # Determine evidence status and overall verdict
+        independent_verification = dkim_info.get("independent_status", "")
         if not is_trusted_authserv and authserv_id:
             overall_verdict = "UNTRUSTED_AUTHSERV"
             evidence_status = "FORGED_OR_UNTRUSTED_AUTHSERV"
+            composite_pass = False
+        elif independent_verification == "DKIM_CRYPTO_FAILED":
+            # Receiver may have claimed pass, but independent crypto verification failed!
+            overall_verdict = "CRYPTO_MISMATCH_OR_TAMPERED"
+            evidence_status = "RECEIVER_PASS_CRYPTO_MISMATCH" if composite_pass else "DKIM_CRYPTO_FAILED"
             composite_pass = False
         elif is_independently_verified and composite_pass:
             overall_verdict = "REPORTED_PASS"
             evidence_status = "INDEPENDENTLY_VERIFIED_PASS"
         elif composite_pass:
             overall_verdict = "REPORTED_PASS"
-            evidence_status = "RECEIVER_REPORTED_PASS"
+            if independent_verification in ["DKIM_KEY_MISSING", "DKIM_DNS_UNAVAILABLE"]:
+                evidence_status = "RECEIVER_REPORTED_PASS_KEY_UNAVAILABLE"
+            else:
+                evidence_status = "RECEIVER_REPORTED_PASS"
         elif dmarc_info.get("status") == "FAIL" or (spf_info.get("status") == "FAIL" and dkim_info.get("status") == "FAIL"):
             overall_verdict = "REPORTED_FAIL"
             evidence_status = "RECEIVER_REPORTED_FAIL"
@@ -216,6 +260,10 @@ class AuthValidator:
             "Receiver-reported cryptographic status depends on boundary MTA integrity.",
             "Cryptographic pass confirms domain delivery authenticity, not that the sender account is benign (e.g. Account Takeover / compromised mailbox)."
         ]
+        if independent_verification == "DKIM_CRYPTO_FAILED":
+            limitations.append("CRITICAL CONFLICT: Receiver reported DKIM pass, but independent RFC 6376 cryptographic verification failed. Signature mismatch or tampered message body/headers.")
+        elif independent_verification in ["DKIM_KEY_MISSING", "DKIM_DNS_UNAVAILABLE"]:
+            limitations.append(f"Independent RFC 6376 verification unavailable ({independent_verification}); relying on boundary MTA trust.")
         if not is_trusted_authserv and authserv_id:
             limitations.append(f"Header authserv-id '{authserv_id}' is unverified against recipient boundary infrastructure.")
 
@@ -289,7 +337,9 @@ class AuthValidator:
     def _audit_dkim(self) -> Dict[str, Any]:
         """Extracts DKIM signature verification status, selector, and signing domain."""
         auth_results = " ".join(self.headers.get("authentication_results", []))
-        dkim_sigs = self.headers.get("dkim_signatures", [])
+        dkim_sigs = self.headers.get("dkim_signatures") or self.headers.get("dkim_signature") or []
+        if isinstance(dkim_sigs, str):
+            dkim_sigs = [dkim_sigs]
         combined = auth_results.lower()
 
         status = "NONE"
@@ -302,13 +352,13 @@ class AuthValidator:
             status = match.group(1).upper()
             details = f"Authentication-Results header reports DKIM={status}."
 
-        # Parse DKIM-Signature header if available
+        # Extract domain (d=) and selector (s=) from signature header if available
         if dkim_sigs:
             first_sig = str(dkim_sigs[0])
-            d_match = re.search(r'\bd=([^\s;]+)', first_sig)
-            s_match = re.search(r'\bs=([^\s;]+)', first_sig)
+            d_match = re.search(r'\bd=([a-zA-Z0-9.\-_]+)', first_sig)
             if d_match:
                 dkim_domain = d_match.group(1).lower().strip('"')
+            s_match = re.search(r'\bs=([a-zA-Z0-9.\-_]+)', first_sig)
             if s_match:
                 selector = s_match.group(1).lower().strip('"')
         # Also extract signing domain from Authentication-Results (header.d= or header.i=)
@@ -329,19 +379,58 @@ class AuthValidator:
         independent_verification = "DKIM_RECEIVER_REPORTED_ONLY"
         independently_verified = False
 
-        if DKIMPY_AVAILABLE and self.raw_content and dkim_sigs:
+        has_dkim_sig = bool(dkim_sigs) or (self.raw_content and (b"\ndkim-signature:" in self.raw_content.lower() or b"\r\ndkim-signature:" in self.raw_content.lower()))
+
+        if DKIMPY_AVAILABLE and self.raw_content and has_dkim_sig:
             try:
-                # Independent cryptographic verification against DNS public key under RFC 6376
-                verified = dkim.verify(self.raw_content)
-                if verified:
-                    independent_verification = "DKIM_INDEPENDENTLY_VERIFIED"
-                    independently_verified = True
-                    details += " Cryptographically validated against DNS public key (RFC 6376)."
+                # 1. First probe if the DNS public key is published and accessible
+                selector_bytes = selector.encode('utf-8') if selector else b""
+                domain_bytes = dkim_domain.encode('utf-8') if dkim_domain else b""
+                key_found = False
+                if selector_bytes and domain_bytes:
+                    qname = selector_bytes + b"._domainkey." + domain_bytes + b"."
+                    try:
+                        pk, _, _, _ = dkim.load_pk_from_dns(qname)
+                        key_found = True
+                    except dkim.KeyFormatError as kfe:
+                        independent_verification = "DKIM_KEY_MISSING"
+                        details += f" Public DKIM key missing or invalid in DNS ({kfe})."
+                    except dkim.DnsTimeoutError as dte:
+                        independent_verification = "DKIM_DNS_UNAVAILABLE"
+                        details += f" DNS resolution unavailable during independent DKIM check ({dte})."
+                    except Exception as dex:
+                        dex_str = str(dex).lower()
+                        if "nxdomain" in dex_str or "noanswer" in dex_str:
+                            independent_verification = "DKIM_KEY_MISSING"
+                            details += f" Public DKIM key missing in DNS ({type(dex).__name__})."
+                        else:
+                            independent_verification = "DKIM_DNS_UNAVAILABLE"
+                            details += f" DNS resolution unavailable ({dex})."
                 else:
-                    independent_verification = "DKIM_VERIFICATION_FAILED"
-                    details += " Independent cryptographic verification failed against DNS public key!"
+                    key_found = True
+
+                if key_found:
+                    # 2. Independent cryptographic verification against DNS public key under RFC 6376
+                    verified = dkim.verify(self.raw_content)
+                    if verified:
+                        independent_verification = "DKIM_INDEPENDENTLY_VERIFIED"
+                        independently_verified = True
+                        details += " Cryptographically validated against DNS public key (RFC 6376)."
+                    else:
+                        independent_verification = "DKIM_CRYPTO_FAILED"
+                        details += " Independent cryptographic verification failed against published DNS key!"
             except Exception as ex:
-                independent_verification = f"DKIM_VERIFICATION_ERROR ({type(ex).__name__})"
+                ex_name = type(ex).__name__
+                ex_str = str(ex).lower()
+                if "nxdomain" in ex_str or "noanswer" in ex_str or "key" in ex_str or "keyformaterror" in ex_str:
+                    independent_verification = "DKIM_KEY_MISSING"
+                    details += f" Public DKIM key missing or invalid in DNS ({ex_name})."
+                elif "timeout" in ex_str or "dns" in ex_str:
+                    independent_verification = "DKIM_DNS_UNAVAILABLE"
+                    details += f" DNS resolution unavailable during independent DKIM check ({ex_name})."
+                else:
+                    independent_verification = f"DKIM_VERIFICATION_ERROR ({ex_name})"
+                    details += f" Independent cryptographic verification error: {ex_name}."
 
         return {
             "status": status,

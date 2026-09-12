@@ -17,7 +17,7 @@ class ForensicPipeline:
     """Orchestrates the entire TRACE-MAIL AI forensic workflow."""
 
     @classmethod
-    def process_raw_email(cls, raw_email_content: Union[str, bytes]) -> Dict[str, Any]:
+    def process_raw_email(cls, raw_email_content: Union[str, bytes], allowlist: Any = None) -> Dict[str, Any]:
         # 1. Parse Envelope & MIME Structure
         parser = EmailParser(raw_email_content)
         parsed_data = parser.parse()
@@ -49,7 +49,7 @@ class ForensicPipeline:
             parsed_data.get("body", {}).get("plain_text", ""),
         ])
         ml_results = CLASSIFIER.predict(ml_text)
-        threat_scorer = ThreatScorer(parsed_data, auth_results, hop_results, ml_results)
+        threat_scorer = ThreatScorer(parsed_data, auth_results, hop_results, ml_results, allowlist=allowlist)
         threat_results = threat_scorer.calculate()
         ioc_graph = IOCGraphBuilder.build(parsed_data, hop_results.get("analyzed_hops", []))
 
