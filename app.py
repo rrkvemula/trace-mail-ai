@@ -593,7 +593,10 @@ async def scan(
         raise
     except Exception as ex:
         logger.error("Forensic analysis pipeline failed: %s", ex, exc_info=True)
-        raise HTTPException(status_code=500, detail="Forensic analysis failed due to an internal pipeline error.")
+        import traceback
+        tb = traceback.format_exc()
+        last_line = tb.strip().splitlines()[-2] if len(tb.strip().splitlines()) >= 2 else ""
+        raise HTTPException(status_code=500, detail=f"Forensic analysis failed: {type(ex).__name__}: {str(ex)} | {last_line}")
 
 
 @app.post("/api/analyze")
@@ -659,7 +662,10 @@ async def analyze_email(
         raise
     except Exception as ex:
         logger.error("Forensic analysis API failed: %s", ex, exc_info=True)
-        raise HTTPException(status_code=500, detail="Forensic analysis failed due to an internal pipeline error.")
+        import traceback
+        tb = traceback.format_exc()
+        last_line = tb.strip().splitlines()[-2] if len(tb.strip().splitlines()) >= 2 else ""
+        raise HTTPException(status_code=500, detail=f"Forensic analysis failed: {type(ex).__name__}: {str(ex)} | {last_line}")
 
 
 @app.post("/api/export-pdf")
