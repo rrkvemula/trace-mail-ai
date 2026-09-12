@@ -342,8 +342,10 @@
         console.error("Auth error:", error);
         if (error.code === "auth/popup-closed-by-user") {
           showAlert("Sign-in cancelled by user.");
+        } else if (error.code === "auth/configuration-not-found" || (error.message && error.message.includes("configuration-not-found"))) {
+          showAlert("Authentication is not activated in Firebase yet! In Firebase Console, click 'Authentication' in the left menu > click 'Get started' > Enable 'Google' provider.", "error");
         } else if (error.code === "auth/unauthorized-domain") {
-          showAlert("Domain not authorized in Firebase Console. Use the Demo Mode below or add this domain in Firebase Console > Auth > Settings.", "error");
+          showAlert("Domain not authorized. Please open http://localhost:8899/login (or add your IP/domain in Firebase Console > Authentication > Settings > Authorized domains).", "error");
         } else {
           showAlert(error.message || "Failed to authenticate with Google. You can use Demo Mode below.");
         }
