@@ -2495,13 +2495,17 @@
 
       holoScene = new THREE.Scene();
       const rect = canvas.getBoundingClientRect();
-      const width = rect.width || window.innerWidth * 0.82;
+      const width = rect.width || window.innerWidth;
       const height = rect.height || window.innerHeight;
 
+      // Mobile portrait vs desktop responsive camera distance
+      const isMobile = width < 768 || width < height;
+      const baseDist = isMobile ? Math.max(6.6, 4.8 * (height / Math.max(width, 1)) * 0.58) : 4.8;
+
       holoCamera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
-      holoCamera.position.set(0, 0, 4.8);
-      holoCurrentCamDist = 4.8;
-      holoTargetCamDist = 4.8;
+      holoCamera.position.set(0, 0, baseDist);
+      holoCurrentCamDist = baseDist;
+      holoTargetCamDist = baseDist;
 
       holoRenderer = new THREE.WebGLRenderer({
         canvas: canvas,
@@ -2655,11 +2659,55 @@
       });
       canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
-        // High-sensitivity responsive zoom for both mouse wheels and precision trackpads
         const delta = e.deltaY;
         const zoomStep = Math.sign(delta) * Math.min(Math.max(Math.abs(delta) * 0.0085, 0.22), 0.70);
-        holoTargetCamDist = Math.min(Math.max(holoTargetCamDist + zoomStep, 1.95), 8.0);
+        holoTargetCamDist = Math.min(Math.max(holoTargetCamDist + zoomStep, 1.95), 10.0);
       }, { passive: false });
+
+      // 9. Mobile Touch Gestures (Single-finger Orbit + 2-finger Pinch Zoom)
+      let initialPinchDist = null;
+      let initialPinchCamDist = holoTargetCamDist;
+
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          holoMouse.isDragging = true;
+          holoMouse.prevX = e.touches[0].clientX;
+          holoMouse.prevY = e.touches[0].clientY;
+        } else if (e.touches.length === 2) {
+          holoMouse.isDragging = false;
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          initialPinchDist = Math.hypot(dx, dy);
+          initialPinchCamDist = holoTargetCamDist;
+        }
+      }, { passive: false });
+
+      window.addEventListener('touchmove', (e) => {
+        if (!holoRadarActive) return;
+        if (e.touches.length === 1 && holoMouse.isDragging && holoGlobeMesh) {
+          if (e.cancelable) e.preventDefault();
+          const clientX = e.touches[0].clientX;
+          const clientY = e.touches[0].clientY;
+          const dx = (clientX - holoMouse.prevX) * 0.0075;
+          const dy = (clientY - holoMouse.prevY) * 0.0075;
+          holoGlobeMesh.rotation.y += dx;
+          holoGlobeMesh.rotation.x = Math.max(Math.min(holoGlobeMesh.rotation.x + dy, 1.35), -1.35);
+          holoMouse.prevX = clientX;
+          holoMouse.prevY = clientY;
+        } else if (e.touches.length === 2 && initialPinchDist) {
+          if (e.cancelable) e.preventDefault();
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const currentDist = Math.hypot(dx, dy);
+          const ratio = initialPinchDist / Math.max(currentDist, 1);
+          holoTargetCamDist = Math.min(Math.max(initialPinchCamDist * ratio, 2.0), 10.5);
+        }
+      }, { passive: false });
+
+      window.addEventListener('touchend', () => {
+        holoMouse.isDragging = false;
+        initialPinchDist = null;
+      });
 
       window.addEventListener('resize', resizeHoloRadar);
     }
@@ -2985,10 +3033,53 @@
     }
 
     function toggleReconZoom() {
-      if (holoTargetCamDist < 3.2) {
-        holoTargetCamDist = 4.8; // Wide Global View
+      const isMobile = window.innerWidth < 768;
+      const wideDist = isMobile ? 6.8 : 4.8;
+      const closeDist = isMobile ? 3.4 : 2.45;
+      if (holoTargetCamDist < 4.0) {
+        holoTargetCamDist = wideDist;
       } else {
-        holoTargetCamDist = 2.45; // Satellite Recon Zoom
+        holoTargetCamDist = closeDist;
+      }
+    }
+
+    function stepHoloZoom(delta) {
+      const isMobile = window.innerWidth < 768;
+      const minD = isMobile ? 2.2 : 1.95;
+      const maxD = isMobile ? 11.0 : 8.5;
+      holoTargetCamDist = Math.min(Math.max(holoTargetCamDist + delta, minD), maxD);
+    }
+
+    let holoHudVisible = true;
+    function toggleHoloHud() {
+      holoHudVisible = !holoHudVisible;
+      const leftPanel = document.getElementById('holoLeftPanel');
+      const rightPanel = document.getElementById('holoRightPanel');
+      const hudToggleBtn = document.getElementById('holoHudToggleBtn');
+      const mobileBadge = document.getElementById('mobileHopsBadge');
+
+      if (leftPanel) {
+        if (holoHudVisible) {
+          leftPanel.classList.remove('hidden');
+        } else {
+          leftPanel.classList.add('hidden');
+        }
+      }
+      if (rightPanel) {
+        if (holoHudVisible) {
+          rightPanel.classList.remove('hidden');
+        } else {
+          rightPanel.classList.add('hidden');
+        }
+      }
+      if (hudToggleBtn) {
+        hudToggleBtn.innerHTML = holoHudVisible ? '<span>📊 HUD: ON</span>' : '<span>📊 HUD: OFF</span>';
+        hudToggleBtn.className = holoHudVisible 
+          ? "flex-shrink-0 px-2.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/40 text-[11px] md:text-xs font-mono transition flex items-center gap-1 cursor-pointer"
+          : "flex-shrink-0 px-2.5 py-1.5 rounded-xl bg-black/60 hover:bg-black text-slate-400 border border-white/20 text-[11px] md:text-xs font-mono transition flex items-center gap-1 cursor-pointer";
+      }
+      if (mobileBadge) {
+        mobileBadge.textContent = holoHudVisible ? 'HIDE' : 'EXPAND';
       }
     }
 
@@ -3024,6 +3115,28 @@
       void modal.offsetWidth;
       backdrop.classList.add('active');
       panel.classList.add('active');
+
+      // Mobile default: start with HUD collapsed so user has 100% full-screen 3D globe!
+      const isMobile = window.innerWidth < 768;
+      holoHudVisible = !isMobile;
+      const leftPanel = document.getElementById('holoLeftPanel');
+      const rightPanel = document.getElementById('holoRightPanel');
+      if (leftPanel) {
+        if (holoHudVisible) leftPanel.classList.remove('hidden');
+        else leftPanel.classList.add('hidden');
+      }
+      if (rightPanel) {
+        if (holoHudVisible) rightPanel.classList.remove('hidden');
+        else rightPanel.classList.add('hidden');
+      }
+      const hudToggleBtn = document.getElementById('holoHudToggleBtn');
+      if (hudToggleBtn) {
+        hudToggleBtn.innerHTML = holoHudVisible ? '<span>📊 HUD: ON</span>' : '<span>📊 HUD: OFF</span>';
+      }
+      const mobileBadge = document.getElementById('mobileHopsBadge');
+      if (mobileBadge) {
+        mobileBadge.textContent = holoHudVisible ? 'HIDE' : 'EXPAND';
+      }
 
       holoRadarActive = true;
       initHoloRadarThree();
@@ -3172,43 +3285,46 @@
     <div id="holoRadarPanel" class="relative z-10 w-full lg:w-[88vw] xl:w-[82vw] h-full bg-gradient-to-br from-[#060a15] via-[#030509] to-[#0a1020] border-l border-cyan-500/30 flex flex-col shadow-2xl shadow-cyan-950/60 overflow-hidden">
       
       <!-- Top HUD Header -->
-      <div class="px-6 py-4 border-b border-white/10 flex flex-wrap items-center justify-between gap-4 bg-black/50 backdrop-blur-2xl z-20">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 text-lg shadow-lg shadow-cyan-500/20">
+      <div class="px-4 py-3 md:px-6 md:py-4 border-b border-white/10 flex flex-wrap items-center justify-between gap-3 bg-black/70 backdrop-blur-2xl z-20">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 text-base md:text-lg shadow-lg shadow-cyan-500/20">
             <i class="fa-solid fa-eye text-cyan-400 animate-pulse"></i>
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <span class="text-base font-bold tracking-wide text-white font-mono flex items-center gap-1.5">
+              <span class="text-sm md:text-base font-bold tracking-wide text-white font-mono flex items-center gap-1.5">
                 GOD'S EYE // GLOBAL SURVEILLANCE
               </span>
-              <span class="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                ORBITAL SIGINT SENSORS
+              <span class="hidden sm:inline-block px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                ORBITAL SIGINT
               </span>
             </div>
-            <p id="holoHeaderSubtitle" class="text-xs opacity-60 font-mono">Photorealistic Earth Reconnaissance • Keyhole Satellite Intercept</p>
+            <p id="holoHeaderSubtitle" class="text-[10px] md:text-xs opacity-60 font-mono">Photorealistic Earth Reconnaissance • Keyhole Satellite Intercept</p>
           </div>
         </div>
 
-        <!-- Controls -->
-        <div class="flex flex-wrap items-center gap-2">
-          <button type="button" onclick="focusGodsEyeLock()" id="holoLockBtn" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-950/60 to-black hover:from-red-900/80 text-red-300 border border-red-500/40 text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer shadow-lg shadow-red-950/40">
-            🎯 God's Eye Lock
+        <!-- Controls (horizontal scrolling on mobile) -->
+        <div class="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 scrollbar-none">
+          <button type="button" onclick="focusGodsEyeLock()" id="holoLockBtn" class="flex-shrink-0 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-red-950/60 to-black hover:from-red-900/80 text-red-300 border border-red-500/40 text-[11px] md:text-xs font-mono font-bold transition flex items-center gap-1 cursor-pointer shadow-lg shadow-red-950/40">
+            🎯 Lock
           </button>
-          <button type="button" onclick="toggleReconZoom()" id="holoZoomBtn" class="px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black text-cyan-300 border border-cyan-500/30 text-xs font-mono transition flex items-center gap-1.5 cursor-pointer">
-            🔍 Recon Zoom
+          <button type="button" onclick="toggleReconZoom()" id="holoZoomBtn" class="flex-shrink-0 px-2.5 py-1.5 rounded-xl bg-black/60 hover:bg-black text-cyan-300 border border-cyan-500/30 text-[11px] md:text-xs font-mono transition flex items-center gap-1 cursor-pointer">
+            🔍 Zoom
           </button>
-          <button type="button" onclick="toggleClouds()" id="holoCloudBtn" class="px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black text-slate-300 border border-white/20 text-xs font-mono transition flex items-center gap-1.5 cursor-pointer">
+          <button type="button" onclick="toggleHoloHud()" id="holoHudToggleBtn" class="flex-shrink-0 px-2.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/40 text-[11px] md:text-xs font-mono transition flex items-center gap-1 cursor-pointer">
+            📊 HUD
+          </button>
+          <button type="button" onclick="toggleClouds()" id="holoCloudBtn" class="hidden sm:flex flex-shrink-0 px-2.5 py-1.5 rounded-xl bg-black/60 hover:bg-black text-slate-300 border border-white/20 text-[11px] md:text-xs font-mono transition items-center gap-1 cursor-pointer">
             ☁️ Clouds: ON
           </button>
-          <button type="button" onclick="toggleNightLights()" id="holoNightBtn" class="px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black text-amber-300 border border-amber-500/30 text-xs font-mono transition flex items-center gap-1.5 cursor-pointer">
+          <button type="button" onclick="toggleNightLights()" id="holoNightBtn" class="hidden sm:flex flex-shrink-0 px-2.5 py-1.5 rounded-xl bg-black/60 hover:bg-black text-amber-300 border border-amber-500/30 text-[11px] md:text-xs font-mono transition items-center gap-1 cursor-pointer">
             🌓 Night: ON
           </button>
-          <button type="button" onclick="toggleHoloOrbit()" id="holoOrbitBtn" class="px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black text-cyan-300 border border-cyan-500/30 text-xs font-mono transition flex items-center gap-1.5 cursor-pointer">
+          <button type="button" onclick="toggleHoloOrbit()" id="holoOrbitBtn" class="hidden sm:flex flex-shrink-0 px-2.5 py-1.5 rounded-xl bg-black/60 hover:bg-black text-cyan-300 border border-cyan-500/30 text-[11px] md:text-xs font-mono transition items-center gap-1 cursor-pointer">
             ⟳ Orbit: ON
           </button>
-          <button type="button" onclick="closeHoloRadarSlide()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/40 text-red-300 border border-red-500/40 text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer ml-1">
-            <i class="fa-solid fa-xmark"></i> Close [ESC]
+          <button type="button" onclick="closeHoloRadarSlide()" class="flex-shrink-0 px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/40 text-red-300 border border-red-500/40 text-[11px] md:text-xs font-mono font-bold transition flex items-center gap-1 cursor-pointer ml-1">
+            <i class="fa-solid fa-xmark"></i> Close
           </button>
         </div>
       </div>
@@ -3218,9 +3334,9 @@
         <!-- Three.js Canvas Container -->
         <canvas id="holoRadarCanvas" class="absolute inset-0 w-full h-full z-0 cursor-grab active:cursor-grabbing"></canvas>
 
-        <!-- Floating Left Telemetry Panel -->
-        <div class="absolute top-6 left-6 z-10 w-80 max-w-[calc(100vw-3rem)] pointer-events-auto space-y-3">
-          <div class="glass rounded-2xl p-4 border border-cyan-500/30 bg-black/80 backdrop-blur-2xl shadow-2xl shadow-black/90">
+        <!-- Floating Left Telemetry Panel (Collapsible on Mobile) -->
+        <div id="holoLeftPanel" class="hidden md:block absolute top-4 left-4 z-20 w-80 max-w-[calc(100vw-2rem)] pointer-events-auto space-y-2">
+          <div class="glass rounded-2xl p-4 border border-cyan-500/30 bg-black/85 backdrop-blur-2xl shadow-2xl shadow-black/95">
             <div class="flex items-center justify-between text-[11px] font-mono text-cyan-400 mb-2 border-b border-white/10 pb-2">
               <span class="flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
@@ -3265,9 +3381,9 @@
           </div>
         </div>
 
-        <!-- Floating Right Relay Hops Timeline -->
-        <div class="absolute top-6 right-6 z-10 w-80 max-w-[calc(100vw-3rem)] pointer-events-auto">
-          <div class="glass rounded-2xl p-4 border border-cyan-500/30 bg-black/80 backdrop-blur-2xl shadow-2xl shadow-black/90 max-h-[70vh] flex flex-col">
+        <!-- Floating Right Relay Hops Timeline (Collapsible on Mobile) -->
+        <div id="holoRightPanel" class="hidden md:block absolute top-4 right-4 z-20 w-80 max-w-[calc(100vw-2rem)] pointer-events-auto">
+          <div class="glass rounded-2xl p-4 border border-cyan-500/30 bg-black/85 backdrop-blur-2xl shadow-2xl shadow-black/95 max-h-[70vh] flex flex-col">
             <div class="flex items-center justify-between text-[11px] font-mono text-cyan-400 pb-2 border-b border-white/10 mb-2">
               <span class="flex items-center gap-1.5">
                 <i class="fa-solid fa-satellite-dish text-cyan-400"></i>
@@ -3288,8 +3404,35 @@
           </div>
         </div>
 
-        <!-- Bottom Telemetry Bar -->
-        <div class="absolute bottom-4 left-6 right-6 z-10 pointer-events-none flex justify-between items-center text-[11px] font-mono text-slate-400">
+        <!-- Mobile Bottom Drawer Toggle Pill -->
+        <div class="md:hidden absolute bottom-3 left-3 right-16 z-20 pointer-events-auto">
+          <button type="button" onclick="toggleHoloHud()" class="w-full py-2 px-3 rounded-xl bg-black/85 border border-cyan-500/40 text-cyan-300 font-mono text-xs font-bold flex items-center justify-between shadow-2xl backdrop-blur-md active:scale-95 transition">
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-satellite-dish text-cyan-400"></i>
+              <span>Target Telemetry & Hops</span>
+            </span>
+            <span id="mobileHopsBadge" class="px-1.5 py-0.5 rounded bg-cyan-500/20 text-[10px] text-cyan-300 border border-cyan-500/40">EXPAND</span>
+          </button>
+        </div>
+
+        <!-- Floating Thumb Zoom & Navigation Controls (Always reachable on right) -->
+        <div class="absolute right-3 bottom-3 md:bottom-16 z-30 flex flex-col gap-1.5 pointer-events-auto">
+          <button type="button" onclick="stepHoloZoom(-0.8)" class="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-black/85 hover:bg-black text-cyan-300 border border-cyan-500/40 flex items-center justify-center text-lg font-bold shadow-xl shadow-black/90 backdrop-blur-md active:scale-95 transition cursor-pointer" title="Zoom In">
+            +
+          </button>
+          <button type="button" onclick="stepHoloZoom(0.8)" class="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-black/85 hover:bg-black text-cyan-300 border border-cyan-500/40 flex items-center justify-center text-lg font-bold shadow-xl shadow-black/90 backdrop-blur-md active:scale-95 transition cursor-pointer" title="Zoom Out">
+            −
+          </button>
+          <button type="button" onclick="focusGodsEyeLock()" class="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-500/40 flex items-center justify-center text-xs font-bold shadow-xl shadow-black/90 backdrop-blur-md active:scale-95 transition cursor-pointer" title="Target Lock">
+            🎯
+          </button>
+          <button type="button" onclick="toggleHoloOrbit()" class="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-black/85 hover:bg-black text-slate-300 border border-white/20 flex items-center justify-center text-xs font-bold shadow-xl shadow-black/90 backdrop-blur-md active:scale-95 transition cursor-pointer" title="Auto Orbit">
+            ⟳
+          </button>
+        </div>
+
+        <!-- Bottom Telemetry Bar (Desktop only) -->
+        <div class="hidden md:flex absolute bottom-4 left-6 right-20 z-10 pointer-events-none justify-between items-center text-[11px] font-mono text-slate-400">
           <div class="stats-card pointer-events-auto flex items-center gap-3">
             <span>SURVEILLANCE STATUS: <span id="holoStatusText" class="text-emerald-400 font-bold">GOD'S EYE ORBITAL GRID LOCKED</span></span>
             <span class="opacity-30">|</span>
