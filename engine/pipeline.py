@@ -120,6 +120,7 @@ class ForensicPipeline:
         return {
             "forensic_hash": parsed_data.get("forensic_hash"),
             "parsed_at_utc": parsed_data.get("parsed_at_utc"),
+            "is_pdf_export": parsed_data.get("is_pdf_export", False),
             "headers": parsed_data.get("headers"),
             "origin_ip": origin_ip,
             "origin_location": origin_loc,
