@@ -12,6 +12,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Firebase App & Auth SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <style>
     * { font-family: 'Space Grotesk', sans-serif; box-sizing: border-box; }
     html { scroll-behavior: smooth; }
@@ -1022,8 +1025,29 @@
     let globeAutoRotate = true;
 
     // =========================================================================
-    // INVESTIGATOR CLEARANCE & AUTHENTICATION MANAGER (GOOGLE / FIREBASE)
+    // INVESTIGATOR CLEARANCE & AUTHENTICATION MANAGER (FIREBASE / GOOGLE AUTH)
     // =========================================================================
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyCypKzByWeAGslFbVCevgSlFzb8JrLUaRI",
+      authDomain: "tracemail-ai-bc650.firebaseapp.com",
+      projectId: "tracemail-ai-bc650",
+      storageBucket: "tracemail-ai-bc650.firebasestorage.app",
+      messagingSenderId: "40855767628",
+      appId: "1:40855767628:web:f91b3a6bf6562f8e6482e9",
+      measurementId: "G-BSLH0LV15B"
+    };
+
+    function initFirebaseClient() {
+      if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+        try {
+          firebase.initializeApp(FIREBASE_CONFIG);
+        } catch(e) {
+          console.warn('Firebase init:', e);
+        }
+      }
+    }
+    initFirebaseClient();
+
     function getActiveAnalyst() {
       try {
         const raw = localStorage.getItem('tracemail_analyst_session');
@@ -1094,6 +1118,11 @@
     }
 
     function signOutAnalyst() {
+      try {
+        if (typeof firebase !== 'undefined' && firebase.auth) {
+          firebase.auth().signOut();
+        }
+      } catch (e) {}
       localStorage.removeItem('tracemail_analyst_session');
       sessionStorage.removeItem('tracemail_guest_dismissed');
       window.location.href = '/login';
