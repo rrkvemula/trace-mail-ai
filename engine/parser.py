@@ -79,7 +79,12 @@ class EmailParser:
             in_header_block = True
             found_any_header = False
 
-            common_headers = {"from", "to", "subject", "date", "reply-to", "cc", "bcc", "sent"}
+            common_headers = {
+                "from", "to", "subject", "date", "reply-to", "cc", "bcc", "sent",
+                "received", "x-originating-ip", "authentication-results", "dkim-signature",
+                "return-path", "received-spf", "arc-authentication-results", "message-id",
+                "x-mailer", "mime-version", "content-type"
+            }
             for line in lines:
                 line_stripped = line.strip()
                 if in_header_block:
@@ -214,21 +219,43 @@ class EmailParser:
         """Parses a single Received header line into IP, MTA domains, protocol, and timestamp."""
         clean_text = " ".join(header_str.split())
 
-        # Extract IPs (IPv4 and IPv6)
-        found_ips = self._extract_ip_candidates(clean_text)
-        candidate_ip = None
-        for ip in found_ips:
+        # Specific source IP extraction: prefer the IP inside the 'from ... [IP]' clause
+        from_clause_match = re.search(r'\bfrom\b(.*?)(?:\bby\b|;|$)', clean_text, re.IGNORECASE)
+        source_clause_text = from_clause_match.group(1) if from_clause_match else clean_text
+        source_ips = self._extract_ip_candidates(source_clause_text)
+
+        source_candidate_ip = None
+        for ip in source_ips:
             try:
                 ip_obj = ipaddress.ip_address(ip)
                 if not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_link_local):
-                    candidate_ip = ip
+                    source_candidate_ip = ip
                     break
             except ValueError:
                 continue
 
-        # If no public IP, take the first valid IP or None
-        if not candidate_ip and found_ips:
-            candidate_ip = found_ips[0]
+        if source_candidate_ip:
+            candidate_ip = source_candidate_ip
+            hop_confidence = "HIGH"
+        else:
+            found_ips = self._extract_ip_candidates(clean_text)
+            candidate_ip = None
+            for ip in found_ips:
+                try:
+                    ip_obj = ipaddress.ip_address(ip)
+                    if not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_link_local):
+                        candidate_ip = ip
+                        break
+                except ValueError:
+                    continue
+            if candidate_ip:
+                hop_confidence = "MEDIUM"
+            elif found_ips:
+                candidate_ip = found_ips[0]
+                hop_confidence = "LOW"
+            else:
+                candidate_ip = None
+                hop_confidence = "UNVERIFIED"
 
         # Extract From and By MTAs
         from_mta = "Unknown"
@@ -253,7 +280,6 @@ class EmailParser:
 
         if ';' in clean_text:
             raw_ts = clean_text.split(';')[-1].strip()
-            # Clean comments like (UTC)
             raw_ts = re.sub(r'\(.*?\)', '', raw_ts).strip()
             try:
                 parsed_dt = parsedate_to_datetime(raw_ts)
@@ -274,13 +300,14 @@ class EmailParser:
         return {
             "hop_number": hop_index,
             "ip": candidate_ip,
+            "confidence": hop_confidence,
             "from_mta": from_mta,
             "by_mta": by_mta,
             "protocol": protocol,
             "raw_timestamp": timestamp_str,
             "timestamp_iso": iso_timestamp,
             "is_public_ip": is_pub,
-            "raw_header": header_str[:250] + ("..." if len(header_str) > 250 else "")
+            "raw_header": header_str[:500] + ("..." if len(header_str) > 500 else "")
         }
 
     def _determine_origin_candidate(self, hops: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -305,8 +332,8 @@ class EmailParser:
                 return {
                     "ip": hop["ip"],
                     "source": f"Earliest public IP observed in Received header #{hop['hop_number']}",
-                    "confidence": "LOW",
-                    "note": "This identifies candidate mail infrastructure, not a person or exact physical origin."
+                    "confidence": hop.get("confidence", "MEDIUM"),
+                    "note": "This identifies mail transfer infrastructure (MTA relay), not a personal handheld device."
                 }
 
         if hops and hops[0].get("ip"):
@@ -314,7 +341,7 @@ class EmailParser:
                 "ip": hops[0]["ip"],
                 "source": "Earliest Received header",
                 "confidence": "LOW",
-                "note": "Only a private or otherwise unverified relay address was available."
+                "note": "Only a private or internal gateway relay address was recorded."
             }
 
         # If no hop IP, inspect message content/telemetry for public candidate IPs
@@ -337,7 +364,7 @@ class EmailParser:
                 "ip": None,
                 "source": "Mobile PDF Visual Printout",
                 "confidence": "VISUAL_SNAPSHOT",
-                "note": "Document uploaded as a mobile PDF printout. Visual email snapshots preserve rendered text and sender domain, but lack hidden RFC 5322 Received hops and DKIM digital signatures."
+                "note": "Sender transit hops unavailable: this visual PDF printout does not contain original RFC 5322 Received routing headers. Physical origin geolocated from registered sender domain authority."
             }
 
         return {

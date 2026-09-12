@@ -299,34 +299,34 @@ def build_ui_compatible_payload(report: Dict[str, Any]) -> Dict[str, Any]:
 
     if lat_val is None:
         # Fallback 4: Internal / Private Subnet Enclave (e.g. RFC 1918)
-        # Visualized on 3D Globe as Internal Enterprise Node rather than failing silently
+        # Accurately labeled as private non-routable range without synthetic physical coordinates
         def_ip = report.get("origin_ip") or "10.0.0.1"
         geo_payload = {
             "ip": def_ip,
-            "country": "Internal Enterprise Enclave",
+            "country": "Private / Internal Network",
             "country_code": "SEC",
-            "region": "Private Subnet",
-            "city": "Corporate Gateway Node",
-            "latitude": 20.5937,
-            "longitude": 78.9629,
-            "lat": 20.5937,
-            "lon": 78.9629,
-            "loc": "20.5937,78.9629",
+            "region": "Non-Routable RFC 1918",
+            "city": "Internal Relay Node",
+            "latitude": None,
+            "longitude": None,
+            "lat": None,
+            "lon": None,
+            "loc": None,
             "org": "Internal Network (RFC 1918)",
-            "isp": "Corporate Secure Relay",
+            "isp": "Corporate Intranet Relay",
             "organization": "Internal Network (RFC 1918)",
             "asn": "AS-PRIVATE",
             "is_private": True,
             "is_tor": False,
             "is_cloud_hosting": False,
             "is_suspicious_infra": False,
-            "status": "INTERNAL_ENCLAVE",
-            "source": "Local RFC 1918 Defense Gateway Mapping",
-            "confidence": "ENCLAVE_CORROBORATED",
-            "note": "Private internal sender; anchored to Enterprise Gateway for perimeter defense visualization."
+            "status": "INTERNAL_NON_ROUTABLE",
+            "source": "Private / Non-Routable IP Range",
+            "confidence": "HIGH",
+            "note": "Private / internal network IP address (RFC 1918 / RFC 4193). Geolocation coordinates are not applicable."
         }
-        lat_val = 20.5937
-        lon_val = 78.9629
+        lat_val = None
+        lon_val = None
 
     org_val = geo_payload.get("organization") or geo_payload.get("org") or "Internal / ISP"
     geo_payload["lat"] = lat_val
@@ -339,7 +339,7 @@ def build_ui_compatible_payload(report: Dict[str, Any]) -> Dict[str, Any]:
 
     city_str = geo_payload.get("city") or ""
     country_str = geo_payload.get("country") or ""
-    if report.get("origin_location") and report.get("origin_location") not in ("Unknown Location", "Internal / Unknown"):
+    if report.get("origin_location") and report.get("origin_location") not in ("Unknown Location", "Internal / Unknown", "No IP provided, Internal / Unknown"):
         sender_loc = report["origin_location"]
     elif city_str and country_str and city_str != "Unavailable" and country_str != "Unavailable":
         sender_loc = f"{city_str}, {country_str}"
@@ -347,12 +347,65 @@ def build_ui_compatible_payload(report: Dict[str, Any]) -> Dict[str, Any]:
         sender_loc = city_str
     elif country_str and country_str != "Unavailable":
         sender_loc = country_str
-    elif geo_payload.get("is_private") or geo_payload.get("status") == "INTERNAL_ENCLAVE":
-        sender_loc = "Internal Enterprise Enclave"
+    elif geo_payload.get("is_private") or geo_payload.get("status") in ("INTERNAL_ENCLAVE", "INTERNAL_NON_ROUTABLE"):
+        sender_loc = "Internal Enterprise Network (RFC 1918)"
     else:
         sender_loc = geo_payload.get("note") or "Unknown Location"
 
     resolved_origin_ip = report.get("origin_ip") or geo_payload.get("ip") or "Loopback / Internal"
+
+    # Explicit Forensic Origin Evidence Categorization (GLM-5.3 Integrity Standard)
+    origin_evidence = report.get("origin_evidence") or {}
+    source_str = origin_evidence.get("source", "")
+    from_hdr = str(hdr.get("from", ""))
+    sender_domain = ""
+    m = re.search(r"@([a-zA-Z0-9.\-]+)", from_hdr)
+    if m:
+        sender_domain = m.group(1).rstrip(">., \t")
+
+    client_ip = hdr.get("x_originating_ip") or None
+    earliest_hop_ip = hops_analyzed[0].get("ip") if hops_analyzed else None
+
+    if "X-Originating-IP" in source_str:
+        evidence_source_type = "CLIENT_ENDPOINT"
+        evidence_label = "Sender Client Endpoint"
+        evidence_caveat = "Extracted from sender-reported header (X-Originating-IP); reflects client workstation/endpoint."
+    elif hops_analyzed and any(h.get("is_public_ip") for h in hops_analyzed):
+        evidence_source_type = "ORIGINATING_MTA_RELAY"
+        evidence_label = "Mail Transfer Agent (MTA) Relay"
+        evidence_caveat = "Geolocated earliest public relay server; represents mail transport infrastructure, not the sender's physical handheld device."
+    elif report.get("is_pdf_export"):
+        evidence_source_type = "DOMAIN_AUTHORITY"
+        evidence_label = "Sender Domain Authority (Mobile PDF)"
+        evidence_caveat = "Routing hops omitted by mobile visual export; physical origin geolocated from verified sender domain infrastructure."
+    elif "domain" in source_str.lower() or "DNS" in str(resolved_origin_ip) or "MX" in str(resolved_origin_ip):
+        evidence_source_type = "DOMAIN_AUTHORITY"
+        evidence_label = "Sender Domain Infrastructure"
+        evidence_caveat = "Geolocated from registered domain authority (DNS/MX) as no public relay hops were available."
+    elif "Telemetry" in source_str or "Body Text" in source_str:
+        evidence_source_type = "MESSAGE_CONTENT_INDICATOR"
+        evidence_label = "Message Body IP Indicator"
+        evidence_caveat = "Public IP extracted from message content; requires independent corroboration against raw headers."
+    elif geo_payload.get("is_private") or geo_payload.get("status") in ("INTERNAL_NON_ROUTABLE", "INTERNAL_ENCLAVE"):
+        evidence_source_type = "INTERNAL_NON_ROUTABLE"
+        evidence_label = "Private Internal Subnet (RFC 1918)"
+        evidence_caveat = "Internal non-routable IP address. Geographical coordinates are not applicable."
+    else:
+        evidence_source_type = "UNAVAILABLE"
+        evidence_label = "Infrastructure Unresolved"
+        evidence_caveat = "No public source infrastructure could be verified from submitted headers."
+
+    forensic_origin = {
+        "evidence_source_type": evidence_source_type,
+        "evidence_label": evidence_label,
+        "evidence_caveat": evidence_caveat,
+        "sender_client_ip": client_ip,
+        "originating_relay_ip": earliest_hop_ip,
+        "sender_domain_infrastructure": sender_domain,
+        "resolved_ip": resolved_origin_ip,
+        "location": sender_loc,
+        "geo": geo_payload
+    }
 
     return {
         "fraud_score": threat_score,
@@ -365,6 +418,7 @@ def build_ui_compatible_payload(report: Dict[str, Any]) -> Dict[str, Any]:
         "origin_geo": geo_payload,
         "origin_location": sender_loc,
         "origin_isp": org_val,
+        "forensic_origin": forensic_origin,
         "headers": {
             "spf": spf_pass,
             "dkim": dkim_pass,
@@ -577,19 +631,20 @@ async def analyze_email(
             "is_demo_sample": filename in set(os.listdir(SAMPLES_DIR)) if os.path.exists(SAMPLES_DIR) else False,
         }
         report["ledger_receipt"] = LEDGER.append(report["analysis_id"], report["forensic_hash"])
-        o_geo = report.get("origin_geo") or {}
-        c_str = o_geo.get("city") or ""
-        co_str = o_geo.get("country") or ""
-        if c_str and co_str and c_str != "Unavailable" and co_str != "Unavailable":
-            report["origin_location"] = f"{c_str}, {co_str}"
-        elif c_str and c_str != "Unavailable":
-            report["origin_location"] = c_str
-        elif co_str and co_str != "Unavailable":
-            report["origin_location"] = co_str
-        elif o_geo.get("is_private") or o_geo.get("status") == "INTERNAL_ENCLAVE":
-            report["origin_location"] = "Internal Enterprise Enclave"
-        else:
-            report["origin_location"] = o_geo.get("note") or "Unknown Location"
+        if not report.get("origin_location") or report.get("origin_location") in ("Unknown Location", "Internal / Unknown", "No IP provided, Internal / Unknown"):
+            o_geo = report.get("origin_geo") or {}
+            c_str = o_geo.get("city") or ""
+            co_str = o_geo.get("country") or ""
+            if c_str and co_str and c_str != "Unavailable" and co_str != "Unavailable":
+                report["origin_location"] = f"{c_str}, {co_str}"
+            elif c_str and c_str != "Unavailable":
+                report["origin_location"] = c_str
+            elif co_str and co_str != "Unavailable":
+                report["origin_location"] = co_str
+            elif o_geo.get("is_private") or o_geo.get("status") in ("INTERNAL_ENCLAVE", "INTERNAL_NON_ROUTABLE"):
+                report["origin_location"] = "Internal Enterprise Network (RFC 1918)"
+            else:
+                report["origin_location"] = o_geo.get("note") or "Unknown Location"
 
         if "trace" not in report:
             report["trace"] = {"geo": o_geo}

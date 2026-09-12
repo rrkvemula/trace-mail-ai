@@ -351,6 +351,78 @@
     </div>
   </div>
 
+  <!-- MOBILE EML EXPORT & FORENSIC GUIDE MODAL -->
+  <div id="mobileEmlHelpModal" class="fixed inset-0 z-[100] bg-black/85 backdrop-blur-xl hidden flex items-center justify-center p-4">
+    <div class="glass rounded-3xl max-w-lg w-full p-6 sm:p-7 border border-amber-500/40 relative shadow-2xl shadow-amber-500/10 text-left overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent"></div>
+      
+      <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-400/30 text-amber-300 text-[10px] font-mono tracking-widest uppercase">
+          <i class="fa-solid fa-mobile-screen"></i>
+          <span>MOBILE FORENSIC GUIDANCE</span>
+        </div>
+        <button onclick="closeMobileEmlGuide()" type="button" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-sm transition cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <div class="overflow-y-auto space-y-4 pr-1 text-xs text-slate-300">
+        <div>
+          <h3 class="text-base font-bold text-white tracking-tight mb-1 flex items-center gap-2">
+            <span class="text-amber-400">📱 Mobile Emails &amp; The PDF Dilemma</span>
+          </h3>
+          <p class="text-[11px] text-slate-400 leading-relaxed">
+            Mobile email apps (Gmail &amp; Outlook on iOS/Android) do not provide a direct <span class="text-amber-300 font-mono">Download .eml</span> button in the native app interface. When users select <span class="text-cyan-300 font-medium">"Print ➔ Save as PDF"</span>, the mobile OS strips RFC 5322 transit hops (<code class="text-cyan-400 font-mono text-[10px]">Received: from...</code>) and cryptographic <code class="text-cyan-400 font-mono text-[10px]">DKIM-Signature</code> headers, leaving only visible body text.
+          </p>
+        </div>
+
+        <!-- Method 1: Mobile Gmail Web -->
+        <div class="p-3.5 rounded-2xl bg-cyan-950/30 border border-cyan-500/30 space-y-2">
+          <div class="flex items-center gap-2 text-cyan-300 font-bold font-mono text-[11px]">
+            <i class="fa-brands fa-google text-cyan-400"></i>
+            <span>HOW TO GET FULL .EML ON MOBILE GMAIL</span>
+          </div>
+          <ol class="list-decimal list-inside space-y-1.5 text-[11px] text-slate-300 font-mono pl-1">
+            <li>Open <strong class="text-white">Chrome</strong> or <strong class="text-white">Safari</strong> on your phone and visit <a href="https://mail.google.com" target="_blank" class="text-cyan-400 underline">mail.google.com</a>.</li>
+            <li>Tap the browser menu (<strong class="text-amber-300">⋮</strong> in Chrome or <strong class="text-amber-300">aA</strong> in Safari) and enable <strong class="text-amber-300">"Desktop Site"</strong>.</li>
+            <li>Open the suspicious email you wish to inspect.</li>
+            <li>Tap the <strong class="text-cyan-300">three dots (⋮)</strong> next to the Reply arrow.</li>
+            <li>Select <strong class="text-emerald-400">"Download message"</strong> (saves the raw original <code class="text-emerald-300">.eml</code> file).</li>
+            <li>Return here and upload the <code class="text-cyan-300 font-bold">.eml</code> for 100% cryptographic forensic validation!</li>
+          </ol>
+        </div>
+
+        <!-- Method 2: Outlook Web -->
+        <div class="p-3.5 rounded-2xl bg-blue-950/30 border border-blue-500/30 space-y-2">
+          <div class="flex items-center gap-2 text-sky-300 font-bold font-mono text-[11px]">
+            <i class="fa-brands fa-microsoft text-sky-400"></i>
+            <span>OUTLOOK / MICROSOFT 365 MOBILE</span>
+          </div>
+          <p class="text-[11px] text-slate-300 font-mono leading-relaxed">
+            In mobile browser Desktop Mode, open the email ➔ click <strong class="text-sky-300">... (More actions)</strong> ➔ <strong class="text-sky-300">View</strong> ➔ <strong class="text-emerald-400">View message source</strong>. You can copy the full headers or save as <code class="text-sky-300">.eml</code>.
+          </p>
+        </div>
+
+        <!-- Method 3: Direct PDF Mode -->
+        <div class="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-1.5">
+          <div class="flex items-center gap-2 text-emerald-300 font-bold font-mono text-[11px]">
+            <i class="fa-solid fa-file-pdf text-emerald-400"></i>
+            <span>DIRECT PDF SCANNING IS SUPPORTED</span>
+          </div>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            You can still upload your <strong class="text-white font-mono">.pdf</strong> directly! TraceMail AI extracts all visible headers, scans embedded links, applies our AI BEC heuristics, and automatically geolocates the sender's infrastructure via <strong class="text-amber-300">Domain Authority &amp; MX DNS resolution</strong>.
+          </p>
+        </div>
+      </div>
+
+      <div class="pt-4 mt-2 border-t border-white/10 flex justify-end">
+        <button onclick="closeMobileEmlGuide()" type="button" class="px-5 py-2 rounded-xl bg-amber-400 text-black font-mono font-bold text-xs hover:bg-amber-300 transition cursor-pointer">
+          UNDERSTOOD, PROCEED TO SCAN
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- NAV -->
   <nav class="fixed top-0 w-full z-50 glass border-b border-white/5">
     <div class="max-w-7xl mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
@@ -467,7 +539,7 @@
           <div class="flex flex-wrap gap-2 mb-4 p-1.5 glass rounded-2xl border border-white/10 text-xs font-mono">
             <button type="button" onclick="onUploadTabClick()" id="inputTabUpload" class="flex-1 py-2.5 px-3 rounded-xl font-bold transition flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-md shadow-cyan-500/20 cursor-pointer">
               <i class="fa-solid fa-cloud-arrow-up"></i>
-              <span>📁 1. Upload / Drop .EML</span>
+              <span>📁 1. Upload .EML/.PDF</span>
             </button>
             <button type="button" onclick="switchInputMode('paste')" id="inputTabPaste" class="flex-1 py-2.5 px-3 rounded-xl font-medium opacity-60 hover:opacity-100 transition flex items-center justify-center gap-2 text-slate-300 cursor-pointer">
               <i class="fa-solid fa-paste"></i>
@@ -475,7 +547,11 @@
             </button>
             <button type="button" onclick="switchInputMode('samples')" id="inputTabSamples" class="flex-1 py-2.5 px-3 rounded-xl font-medium opacity-60 hover:opacity-100 transition flex items-center justify-center gap-2 text-slate-300 cursor-pointer">
               <i class="fa-solid fa-folder-open"></i>
-              <span>📚 3. Sample Attacks</span>
+              <span>📚 3. Samples</span>
+            </button>
+            <button type="button" onclick="openMobileEmlGuide()" id="inputTabMobileHelp" class="py-2.5 px-3 rounded-xl font-medium opacity-80 hover:opacity-100 transition flex items-center justify-center gap-1.5 text-amber-300 bg-amber-500/10 border border-amber-500/30 cursor-pointer" title="How to get original .eml headers on mobile phones">
+              <i class="fa-solid fa-mobile-screen"></i>
+              <span>📱 .EML Guide</span>
             </button>
           </div>
 
@@ -483,8 +559,8 @@
             <!-- TAB 1: DEDICATED LARGE DRAG & DROP / UPLOAD .EML ZONE -->
             <div id="sectionUpload" class="space-y-3">
               <div id="dropZone" class="relative glass rounded-3xl p-8 md:p-10 flex flex-col items-center justify-center border-2 border-dashed border-cyan-400/60 hover:border-cyan-300 bg-gradient-to-b from-cyan-950/40 via-black/60 to-blue-950/40 hover:bg-cyan-950/60 transition-all duration-300 group overflow-hidden drop-zone-3d shadow-2xl shadow-cyan-950/50 min-h-[220px]">
-                <!-- Transparent native input covering 100% of the drop zone for direct native mobile & desktop tap/click/drop -->
-                <input type="file" name="eml" id="fileInput" accept=".eml,.msg,.txt,.pdf,message/rfc822,text/plain,application/pdf,application/octet-stream,*/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" title="Click or drop .eml or .pdf file here">
+                <!-- Native input restricted to verified forensic formats (.eml, .txt, .pdf) -->
+                <input type="file" name="eml" id="fileInput" accept=".eml,.txt,.pdf,message/rfc822,text/plain,application/pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" title="Click or drop .eml, .txt, or mobile .pdf file here">
 
                 <div class="pointer-events-none flex flex-col items-center justify-center text-center">
                   <div class="w-16 h-16 rounded-2xl bg-cyan-500/20 border border-cyan-400/60 flex items-center justify-center text-cyan-300 text-3xl mb-3 group-hover:scale-110 group-hover:-translate-y-1 transition shadow-lg shadow-cyan-500/30">
@@ -1160,6 +1236,30 @@
       if (modal) modal.classList.add('hidden');
     }
 
+    function openMobileEmlGuide() {
+      const modal = document.getElementById('mobileEmlHelpModal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+    }
+
+    function closeMobileEmlGuide() {
+      const modal = document.getElementById('mobileEmlHelpModal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    // Dismiss mobile guide on backdrop click
+    window.addEventListener('click', (e) => {
+      const mModal = document.getElementById('mobileEmlHelpModal');
+      if (mModal && e.target === mModal) {
+        closeMobileEmlGuide();
+      }
+    });
+
     function signOutAnalyst() {
       try {
         if (typeof firebase !== 'undefined' && firebase.auth) {
@@ -1634,6 +1734,7 @@
     initSampleDropdown();
 
     // 8. Unified Forensic Deep Scan Executor
+    let isScanningForensic = false;
     async function runForensicScan() {
       console.log('[TraceMail] Running forensic deep scan...');
       const formEl = document.getElementById('f');
@@ -1652,13 +1753,29 @@
         return;
       }
 
+      isScanningForensic = true;
+      let progressTimer = null;
+
       if (scanBtn) {
         scanBtn.disabled = true;
         scanBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i><span>ANALYZING INVARIANTS...</span>';
       }
       if (scoreEl) scoreEl.textContent = '...';
-      if (statusMsg) statusMsg.textContent = 'PIPELINE EXECUTING...';
+      if (statusMsg) statusMsg.textContent = 'READING INGESTION STREAM...';
       if (out) out.textContent = 'Pipeline executing: RFC Header Invariants → Safe Link Inspection → BEC Multi-Signal Model → GeoIP Telemetry...';
+
+      const steps = [
+        'READING INGESTION STREAM...',
+        'UPLOADING EVIDENCE PAYLOAD...',
+        'PARSING RFC 5322 INVARIANTS & DKIM...',
+        'GEOLOCATING INFRASTRUCTURE & DOMAIN AUTHORITY...',
+        'CALCULATING MULTI-SIGNAL THREAT MATRIX...'
+      ];
+      let stepIdx = 0;
+      progressTimer = setInterval(() => {
+        stepIdx = (stepIdx + 1) % steps.length;
+        if (statusMsg) statusMsg.textContent = steps[stepIdx];
+      }, 550);
 
       try {
         const fd = formEl ? new FormData(formEl) : new FormData();
@@ -1682,21 +1799,25 @@
         if (!r.ok) {
           throw new Error(j.detail || 'Forensic scan failed (' + r.status + ')');
         }
+        if (progressTimer) clearInterval(progressTimer);
+        if (statusMsg) statusMsg.textContent = 'SCAN COMPLETE';
         currentForensicReport = j;
 
         renderCompleteForensics(j);
-
 
         const resEl = document.getElementById('results');
         if (resEl) {
           resEl.scrollIntoView({ behavior: 'smooth' });
         }
       } catch (err) {
+        if (progressTimer) clearInterval(progressTimer);
         console.error('[TraceMail] Scan error:', err);
         if (out) out.textContent = 'Scan Error: ' + err.message;
         if (statusMsg) statusMsg.textContent = 'ERROR: ' + err.message;
         alert('Scan Error: ' + err.message);
       } finally {
+        if (progressTimer) clearInterval(progressTimer);
+        isScanningForensic = false;
         if (scanBtn) {
           scanBtn.disabled = false;
           scanBtn.innerHTML = '<i class="fa-solid fa-bolt"></i><span>RUN FORENSIC DEEP SCAN</span>';
@@ -1757,6 +1878,10 @@
       // Resolve comprehensive sender & origin intelligence
       const tr = j.trace || {};
       const geo = tr.geo || j.origin_geo || {};
+      const fo = j.forensic_origin || {};
+      const evidenceType = fo.evidence_source_type || geo.evidence_source_type || '';
+      const evidenceLabel = fo.evidence_label || geo.evidence_label || '';
+      const evidenceCaveat = fo.evidence_caveat || geo.evidence_caveat || '';
       const originIp = h.origin_ip || geo.ip || j.origin_ip || 'Loopback / Internal';
 
       let senderLocStr = j.origin_location || h.origin_location || '';
@@ -1770,11 +1895,15 @@
           senderLocStr = country;
         } else if (city) {
           senderLocStr = city;
-        } else if (geo.is_private || geo.status === 'INTERNAL_ENCLAVE') {
-          senderLocStr = 'Internal Enterprise Enclave (RFC 1918)';
+        } else if (geo.is_private || geo.status === 'INTERNAL_ENCLAVE' || (geo.latitude == null && (originIp.startsWith('10.') || originIp.startsWith('192.168.') || originIp.startsWith('172.16.') || originIp === '127.0.0.1'))) {
+          senderLocStr = 'Internal Enterprise Network (RFC 1918) — Non-Routable';
         } else {
           senderLocStr = geo.note || 'Location Unavailable';
         }
+      }
+
+      if (geo.is_private || geo.status === 'INTERNAL_ENCLAVE' || (geo.latitude == null && (originIp.startsWith('10.') || originIp.startsWith('192.168.') || originIp.startsWith('172.16.') || originIp === '127.0.0.1'))) {
+        senderLocStr = 'Internal Enterprise Network (RFC 1918) — Non-Routable';
       }
 
       const senderIspStr = geo.isp || geo.org || geo.organization || h.origin_isp || j.origin_isp || 'Registered Infrastructure';
@@ -1790,7 +1919,21 @@
       // Populate Executive Verdict Tab Sender Dossier Strip
       const vFrom = document.getElementById('verdictSenderFrom'); if (vFrom) vFrom.innerText = h.from || 'Not specified';
       const vIp = document.getElementById('verdictOriginIp'); if (vIp) vIp.innerText = originIp;
-      const vLoc = document.getElementById('verdictSenderLoc'); if (vLoc) vLoc.innerText = '📍 ' + senderLocStr;
+      const vLoc = document.getElementById('verdictSenderLoc');
+      if (vLoc) {
+        let badgeHtml = '';
+        if (evidenceType === 'DOMAIN_AUTHORITY') {
+          badgeHtml = ' <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 ml-1 font-mono font-normal" title="Geolocated via sender domain MX/DNS authority">[DOMAIN AUTHORITY]</span>';
+        } else if (evidenceType === 'MTA_RELAY') {
+          badgeHtml = ' <span class="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 ml-1 font-mono font-normal" title="Geolocated via originating Mail Transfer Agent relay">[MTA RELAY]</span>';
+        } else if (evidenceType === 'CLIENT_ENDPOINT') {
+          badgeHtml = ' <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 ml-1 font-mono font-normal" title="Geolocated via originating client IP">[CLIENT ENDPOINT]</span>';
+        }
+        vLoc.innerHTML = '📍 ' + escHtml(senderLocStr) + badgeHtml;
+        if (evidenceCaveat) {
+          vLoc.title = evidenceCaveat;
+        }
+      }
       const vIsp = document.getElementById('verdictSenderIsp'); if (vIsp) vIsp.innerText = senderIspStr;
 
       // Reveal Results Section with 3D Spatial Slide
@@ -1899,7 +2042,18 @@
       }
       const hdrRT = document.getElementById('hdrReplyTo'); if (hdrRT) hdrRT.innerText = h.reply_to || 'Matching From';
       const hdrIP = document.getElementById('hdrOriginIp'); if (hdrIP) hdrIP.innerText = originIp;
-      const hdrSLoc = document.getElementById('hdrSenderLoc'); if (hdrSLoc) hdrSLoc.innerText = '📍 ' + senderLocStr;
+      const hdrSLoc = document.getElementById('hdrSenderLoc');
+      if (hdrSLoc) {
+        let badgeHtml = '';
+        if (evidenceType === 'DOMAIN_AUTHORITY') {
+          badgeHtml = ' <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 ml-1 font-mono font-normal">[DOMAIN AUTHORITY]</span>';
+        } else if (evidenceType === 'MTA_RELAY') {
+          badgeHtml = ' <span class="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 ml-1 font-mono font-normal">[MTA RELAY]</span>';
+        } else if (evidenceType === 'CLIENT_ENDPOINT') {
+          badgeHtml = ' <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 ml-1 font-mono font-normal">[CLIENT ENDPOINT]</span>';
+        }
+        hdrSLoc.innerHTML = '📍 ' + escHtml(senderLocStr) + badgeHtml;
+      }
       const hdrSIsp = document.getElementById('hdrSenderIsp'); if (hdrSIsp) hdrSIsp.innerText = senderIspStr;
       const hopsCount = typeof h.hops === 'number' ? h.hops : (Array.isArray(h.hops) ? h.hops.length : (h.total_hops || 0));
       const hdrHp = document.getElementById('hdrHops'); if (hdrHp) hdrHp.innerText = hopsCount + ' intermediate hops recorded';
@@ -1930,10 +2084,31 @@
 
       // TAB 4: Geo & WHOIS Fill
       const gIp = document.getElementById('geoIpVal'); if (gIp) gIp.innerText = originIp;
-      const gLoc = document.getElementById('geoLocVal'); if (gLoc) gLoc.innerText = senderLocStr;
-      const gCoord = document.getElementById('geoCoordsVal'); if (gCoord) gCoord.innerText = geo.loc || (geo.lat ? (geo.lat + ', ' + geo.lon) : (geo.latitude ? (geo.latitude + ', ' + geo.longitude) : 'N/A'));
+      const gLoc = document.getElementById('geoLocVal');
+      if (gLoc) {
+        let badgeHtml = '';
+        if (evidenceType === 'DOMAIN_AUTHORITY') {
+          badgeHtml = ' <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 ml-1 font-mono font-normal">[DOMAIN AUTHORITY]</span>';
+        } else if (evidenceType === 'MTA_RELAY') {
+          badgeHtml = ' <span class="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 ml-1 font-mono font-normal">[MTA RELAY]</span>';
+        }
+        gLoc.innerHTML = escHtml(senderLocStr) + badgeHtml;
+      }
+      const gCoord = document.getElementById('geoCoordsVal');
+      if (gCoord) {
+        if (geo.is_private || geo.latitude == null || isNaN(Number(geo.latitude || geo.lat))) {
+          gCoord.innerText = 'NON-ROUTABLE / NO GPS';
+        } else {
+          gCoord.innerText = geo.loc || (geo.lat ? (geo.lat + ', ' + geo.lon) : (geo.latitude ? (geo.latitude + ', ' + geo.longitude) : 'NON-ROUTABLE / NO GPS'));
+        }
+      }
       const gOrg = document.getElementById('geoOrgVal'); if (gOrg) gOrg.innerText = senderIspStr;
-      const gSrc = document.getElementById('geoSourceVal'); if (gSrc) gSrc.innerText = geo.source || geo.note || 'Multi-Signal Intelligence';
+      const gSrc = document.getElementById('geoSourceVal');
+      if (gSrc) {
+        let srcText = evidenceLabel || geo.source || geo.note || 'Multi-Signal Intelligence';
+        if (evidenceType) srcText = `[${evidenceType}] ${srcText}`;
+        gSrc.innerText = srcText;
+      }
 
       const whoisData = geo.whois || {};
       const wReg = document.getElementById('whoisReg'); if (wReg) wReg.innerText = whoisData.registrar || 'N/A';
@@ -2355,13 +2530,13 @@
       const pill = document.getElementById('fileStatusPill');
       const pillText = document.getElementById('fileStatusPillText');
       if (pill && pillText) {
-        pillText.innerText = `File Attached: ${file.name} (${(file.size / 1024).toFixed(1)} KB) - Analyzing...`;
+        pillText.innerText = `File Attached: ${file.name} (${(file.size / 1024).toFixed(1)} KB) - Ingesting...`;
         pill.classList.remove('hidden');
       }
 
       const scanBtn = document.getElementById('scanBtn');
       if (scanBtn) {
-        scanBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i><span>ANALYZING: ${file.name.slice(0, 24)}</span>`;
+        scanBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i><span>INGESTING: ${file.name.slice(0, 24)}</span>`;
         scanBtn.classList.add('animate-pulse');
       }
 
@@ -2372,37 +2547,42 @@
           emailBody.value = `[Attached Mobile PDF: ${file.name} (${(file.size / 1024).toFixed(1)} KB)]\nExtracting document text, sender identity, and geolocating origin domain infrastructure...`;
         }
         triggerTextFileSlide3D(file.name, file.size, 1);
-        return;
+        return Promise.resolve();
       }
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target.result || '';
-        const emailBody = document.getElementById('emailBody');
-        if (emailBody) emailBody.value = content;
-        
-        const match = content.match(/From:[ \t]*([^\r\n]+)/i);
-        const fromInput = document.getElementById('fromInput');
-        if (match && fromInput && !fromInput.value) {
-          fromInput.value = match[1].trim();
-        }
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const content = event.target.result || '';
+          const emailBody = document.getElementById('emailBody');
+          if (emailBody) emailBody.value = content;
+          
+          const match = content.match(/From:[ \t]*([^\r\n]+)/i);
+          const fromInput = document.getElementById('fromInput');
+          if (match && fromInput && !fromInput.value) {
+            fromInput.value = match[1].trim();
+          }
 
-        const lines = (content.match(/\n/g) || []).length + 1;
-        triggerTextFileSlide3D(file.name, file.size, lines);
-      };
-      reader.readAsText(file);
+          const lines = (content.match(/\n/g) || []).length + 1;
+          triggerTextFileSlide3D(file.name, file.size, lines);
+          resolve();
+        };
+        reader.onerror = () => {
+          console.warn('[TraceMail] FileReader encountered an issue; continuing with raw file payload.');
+          resolve();
+        };
+        reader.readAsText(file);
+      });
     }
 
     const fileInputEl = document.getElementById('fileInput');
     if (fileInputEl) {
-      fileInputEl.addEventListener('change', (e) => {
+      fileInputEl.addEventListener('change', async (e) => {
         if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
           console.log('[TraceMail] File attached via file input:', file.name, file.size);
-          ingestFileInto3DConsole(file);
-          setTimeout(() => {
-            runForensicScan();
-          }, 150);
+          await ingestFileInto3DConsole(file);
+          await runForensicScan();
         }
       });
     }
@@ -2424,16 +2604,14 @@
           dropZone.classList.remove('border-cyan-300', 'bg-cyan-900/60');
         }, false);
       });
-      dropZone.addEventListener('drop', (e) => {
+      dropZone.addEventListener('drop', async (e) => {
         const dt = e.dataTransfer;
         if (dt && dt.files && dt.files.length > 0) {
           const file = dt.files[0];
           const input = document.getElementById('fileInput');
           if (input) input.files = dt.files;
-          ingestFileInto3DConsole(file);
-          setTimeout(() => {
-            runForensicScan();
-          }, 150);
+          await ingestFileInto3DConsole(file);
+          await runForensicScan();
         }
       });
     }
@@ -2465,7 +2643,7 @@
       }
     });
 
-    window.addEventListener('drop', (e) => {
+    window.addEventListener('drop', async (e) => {
       e.preventDefault();
       dragCounter = 0;
       if (globalDropOverlay) {
@@ -2479,10 +2657,8 @@
         switchInputMode('upload');
         const scanEl = document.getElementById('scan');
         if (scanEl) scanEl.scrollIntoView({ behavior: 'smooth' });
-        ingestFileInto3DConsole(file);
-        setTimeout(() => {
-          runForensicScan();
-        }, 150);
+        await ingestFileInto3DConsole(file);
+        await runForensicScan();
       }
     });
 
@@ -2619,9 +2795,11 @@
       const width = (parent && parent.clientWidth > 0 ? parent.clientWidth : canvas.clientWidth) || window.innerWidth;
       const height = (parent && parent.clientHeight > 0 ? parent.clientHeight : canvas.clientHeight) || window.innerHeight;
 
-      // Responsive base camera distance for mobile portrait vs desktop
-      const isMobile = width < 768 || width < height;
+      // Responsive base camera distance and mobile performance optimizations
+      const isMobile = width < 768 || width < height || (typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 1 || /Android|iPhone|iPad/i.test(navigator.userAgent)));
       const baseDist = isMobile ? 5.2 : 4.8;
+      const segs = isMobile ? 48 : 128;
+      const starCount = isMobile ? 400 : 1200;
 
       holoCamera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
       holoCamera.position.set(0, 0, baseDist);
@@ -2630,17 +2808,16 @@
 
       holoRenderer = new THREE.WebGLRenderer({
         canvas: canvas,
-        antialias: true,
+        antialias: !isMobile,
         alpha: true,
         powerPreference: "high-performance"
       });
       holoRenderer.setSize(width, height);
-      holoRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      holoRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2));
       holoRenderer.toneMapping = THREE.ACESFilmicToneMapping;
       holoRenderer.toneMappingExposure = 1.25;
 
       // 1. Deep Space Starfield (Subtle orbital depth)
-      const starCount = 1200;
       const starPositions = new Float32Array(starCount * 3);
       for (let i = 0; i < starCount * 3; i += 3) {
         const u = (Math.random() - 0.5) * 140;
@@ -2680,7 +2857,7 @@
 
       // 4. Photorealistic Earth Core (Immediate rich blue oceanic base + 4K Blue Marble + Night Lights)
       const r = 1.65;
-      const earthGeo = new THREE.SphereGeometry(r, 128, 128);
+      const earthGeo = new THREE.SphereGeometry(r, segs, segs);
       const maxAnisotropy = holoRenderer ? holoRenderer.capabilities.getMaxAnisotropy() : 8;
       
       const earthMat = new THREE.MeshPhongMaterial({
@@ -2733,7 +2910,7 @@
       holoGlobeMesh.add(gridMesh);
 
       // 5. Atmospheric Dynamic Cloud Layer
-      const cloudGeo = new THREE.SphereGeometry(r * 1.014, 128, 128);
+      const cloudGeo = new THREE.SphereGeometry(r * 1.014, segs, segs);
       const cloudMat = new THREE.MeshStandardMaterial({
         transparent: true,
         opacity: 0.28,
@@ -2751,7 +2928,7 @@
       });
 
       // 6. Atmospheric Edge / Limb Glow (Clamped to prevent negative pow() base in mobile WebGL GPUs)
-      const atmosGeo = new THREE.SphereGeometry(r * 1.045, 128, 128);
+      const atmosGeo = new THREE.SphereGeometry(r * 1.045, segs, segs);
       const atmosMat = new THREE.ShaderMaterial({
         vertexShader: `
           varying vec3 vNormal;
@@ -3031,34 +3208,45 @@
       const hopsCountVal = document.getElementById('holoHopsCountVal');
       const riskBadge = document.getElementById('holoRiskBadge');
 
-      let originLat = 50.1109, originLng = 8.6821;
+      let originLat = null, originLng = null;
       let originCity = "Frankfurt", originCountry = "Germany", originIp = "185.220.101.5", originIsp = "Tor Exit Node";
+      let hasValidCoords = false;
+      let isPrivateEnclave = false;
 
       if (report) {
-        const traceGeo = report.trace?.geo || report.origin_geo;
-        if (traceGeo) {
-          if (traceGeo.city && traceGeo.city !== 'Unavailable') originCity = traceGeo.city;
-          if (traceGeo.country && traceGeo.country !== 'Unavailable') originCountry = traceGeo.country;
-          if (traceGeo.ip || report.headers?.origin_ip || report.origin_ip) originIp = traceGeo.ip || report.headers?.origin_ip || report.origin_ip;
-          if (traceGeo.isp || traceGeo.org || report.headers?.origin_isp || report.origin_isp) originIsp = traceGeo.isp || traceGeo.org || report.headers?.origin_isp || report.origin_isp;
+        const traceGeo = report.trace?.geo || report.origin_geo || {};
+        originCity = "Network Node";
+        originCountry = "Global Routing";
+        originIp = traceGeo.ip || report.headers?.origin_ip || report.origin_ip || "Unknown IP";
+        originIsp = traceGeo.isp || traceGeo.org || report.headers?.origin_isp || report.origin_isp || "Registered Authority";
 
+        isPrivateEnclave = Boolean(traceGeo.is_private || traceGeo.status === 'INTERNAL_ENCLAVE' || (traceGeo.latitude == null && (originIp.startsWith('10.') || originIp.startsWith('192.168.') || originIp.startsWith('172.16.') || originIp === '127.0.0.1')));
+
+        if (traceGeo.city && traceGeo.city !== 'Unavailable') originCity = traceGeo.city;
+        if (traceGeo.country && traceGeo.country !== 'Unavailable') originCountry = traceGeo.country;
+
+        if (!isPrivateEnclave) {
           const rawLat = traceGeo.latitude ?? traceGeo.lat;
           const rawLng = traceGeo.longitude ?? traceGeo.lon;
           if (rawLat !== null && rawLat !== undefined && rawLat !== '' && !isNaN(Number(rawLat)) &&
               rawLng !== null && rawLng !== undefined && rawLng !== '' && !isNaN(Number(rawLng))) {
             originLat = Number(rawLat);
             originLng = Number(rawLng);
+            hasValidCoords = true;
           }
         }
-        if ((!originCity || originCity === "Frankfurt") && report.hops_analysis && report.hops_analysis.length > 0) {
+
+        if (!hasValidCoords && !isPrivateEnclave && report.hops_analysis && report.hops_analysis.length > 0) {
           for (const h of report.hops_analysis) {
             const hg = h.geo || {};
+            if (hg.is_private) continue;
             const hLat = hg.latitude ?? hg.lat;
             const hLng = hg.longitude ?? hg.lon;
             if (hLat !== null && hLat !== undefined && !isNaN(Number(hLat)) &&
                 hLng !== null && hLng !== undefined && !isNaN(Number(hLng))) {
               originLat = Number(hLat);
               originLng = Number(hLng);
+              hasValidCoords = true;
               if (hg.city && hg.city !== 'Unavailable') originCity = hg.city;
               if (hg.country && hg.country !== 'Unavailable') originCountry = hg.country;
               if (h.ip || hg.ip) originIp = h.ip || hg.ip;
@@ -3067,23 +3255,43 @@
             }
           }
         }
+
+        if (isPrivateEnclave) {
+          originCity = "Enterprise Enclave";
+          originCountry = "RFC 1918 Private Network";
+          originIsp = "Internal Enterprise Infrastructure";
+        }
       } else if (origin && !isNaN(origin.lat) && !isNaN(origin.lng)) {
         originLat = origin.lat;
         originLng = origin.lng;
+        hasValidCoords = true;
         originCity = origin.city || "Detected City";
         originCountry = origin.country || "Detected Region";
         originIp = origin.ip || "Origin Host";
         originIsp = origin.org || "Network Authority";
+      } else {
+        originLat = 50.1109;
+        originLng = 8.6821;
+        hasValidCoords = true;
+        originCity = "Frankfurt";
+        originCountry = "Germany";
+        originIp = "185.220.101.5";
+        originIsp = "Tor Exit Node";
       }
 
-      holoLastThreatLat = originLat;
-      holoLastThreatLng = originLng;
+      if (hasValidCoords && originLat !== null && originLng !== null) {
+        holoLastThreatLat = originLat;
+        holoLastThreatLng = originLng;
+      } else {
+        holoLastThreatLat = null;
+        holoLastThreatLng = null;
+      }
 
       if (ipVal) ipVal.textContent = originIp;
       if (geoVal) geoVal.textContent = `${originCity}, ${originCountry}`;
-      if (coordsVal) coordsVal.textContent = `${originLat.toFixed(2)}° N, ${originLng.toFixed(2)}° E`;
+      if (coordsVal) coordsVal.textContent = hasValidCoords && originLat !== null && originLng !== null ? `${originLat.toFixed(2)}° N, ${originLng.toFixed(2)}° E` : (isPrivateEnclave ? "RFC 1918 / NON-ROUTABLE" : "NON-ROUTABLE / NO GPS");
       if (ispVal) ispVal.textContent = originIsp;
-      if (hopsCountVal) hopsCountVal.textContent = report ? `${report.headers?.hops || 3} Relay Hops` : '3 Relay Hops';
+      if (hopsCountVal) hopsCountVal.textContent = report ? `${report.headers?.hops || (report.hops_analysis ? report.hops_analysis.length : 1)} Relay Hops` : '3 Relay Hops';
 
       if (riskBadge) {
         if (isMalicious) {
@@ -3096,11 +3304,17 @@
       }
 
       // God's Eye Target Acquisition Reticle on Surface
-      createThreatReticle(originLat, originLng, isMalicious);
-
-      // Gateway Relay Arc
-      const gatewayLat = 20.5937, gatewayLng = 78.9629;
-      addHoloHopArc(originLat, originLng, gatewayLat, gatewayLng, arcColor);
+      if (hasValidCoords && originLat !== null && originLng !== null) {
+        createThreatReticle(originLat, originLng, isMalicious);
+        // Gateway Relay Arc
+        const gatewayLat = 20.5937, gatewayLng = 78.9629;
+        addHoloHopArc(originLat, originLng, gatewayLat, gatewayLng, arcColor);
+      } else {
+        if (holoThreatReticle && holoGlobeMesh) {
+          holoGlobeMesh.remove(holoThreatReticle.reticleGroup);
+          holoThreatReticle = null;
+        }
+      }
 
       // Populate Timeline dynamically from active email hops
       const hopsTimeline = document.getElementById('holoHopsTimeline');
@@ -3136,7 +3350,7 @@
             `;
             hopsTimeline.appendChild(hopItem);
 
-            if (idx > 0 && hopLat !== null && hopLng !== null) {
+            if (idx > 0 && hopLat !== null && hopLng !== null && prevLat !== null && prevLng !== null) {
               addHoloHopArc(prevLat, prevLng, hopLat, hopLng, 0x00d4ff);
               prevLat = hopLat;
               prevLng = hopLng;
@@ -3144,8 +3358,10 @@
           });
         } else {
           const hop1 = document.createElement('div');
-          hop1.className = "p-2.5 rounded-xl bg-white/5 border border-cyan-500/30 hover:border-cyan-400 cursor-pointer transition";
-          hop1.onclick = () => focusHoloNode(originLat, originLng);
+          hop1.className = "p-2.5 rounded-xl bg-white/5 border border-cyan-500/30 transition";
+          if (hasValidCoords && originLat !== null && originLng !== null) {
+            hop1.onclick = () => focusHoloNode(originLat, originLng);
+          }
           hop1.innerHTML = `
             <div class="flex justify-between text-[10px] text-cyan-300 font-bold">
               <span>ORIGIN TARGET INTERCEPT</span>
@@ -3155,17 +3371,20 @@
           `;
           hopsTimeline.appendChild(hop1);
 
-          const hop2 = document.createElement('div');
-          hop2.className = "p-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-400 cursor-pointer transition";
-          hop2.onclick = () => focusHoloNode(gatewayLat, gatewayLng);
-          hop2.innerHTML = `
-            <div class="flex justify-between text-[10px] text-emerald-400 font-bold">
-              <span>DEFENSE GATEWAY (INBOX)</span>
-              <span>Secure MX Receiver</span>
-            </div>
-            <div class="text-[11px] text-slate-400 mt-0.5">Corporate Defense Node • 20.59° N, 78.96° E</div>
-          `;
-          hopsTimeline.appendChild(hop2);
+          if (hasValidCoords && originLat !== null && originLng !== null) {
+            const gatewayLat = 20.5937, gatewayLng = 78.9629;
+            const hop2 = document.createElement('div');
+            hop2.className = "p-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-400 cursor-pointer transition";
+            hop2.onclick = () => focusHoloNode(gatewayLat, gatewayLng);
+            hop2.innerHTML = `
+              <div class="flex justify-between text-[10px] text-emerald-400 font-bold">
+                <span>DEFENSE GATEWAY (INBOX)</span>
+                <span>Secure MX Receiver</span>
+              </div>
+              <div class="text-[11px] text-slate-400 mt-0.5">Corporate Defense Node • 20.59° N, 78.96° E</div>
+            `;
+            hopsTimeline.appendChild(hop2);
+          }
         }
       }
       // Synchronize mobile drawer telemetry
@@ -3178,7 +3397,7 @@
 
       if (mobIp) mobIp.textContent = originIp;
       if (mobGeo) mobGeo.textContent = `${originCity}, ${originCountry}`;
-      if (mobCoords) mobCoords.textContent = `${originLat.toFixed(2)}° N, ${originLng.toFixed(2)}° E`;
+      if (mobCoords) mobCoords.textContent = hasValidCoords && originLat !== null && originLng !== null ? `${originLat.toFixed(2)}° N, ${originLng.toFixed(2)}° E` : (isPrivateEnclave ? "RFC 1918 / NON-ROUTABLE" : "NON-ROUTABLE / NO GPS");
       if (mobIsp) mobIsp.textContent = originIsp;
       if (mobSummary) mobSummary.textContent = `${originCity} • ${originIp}`;
       if (mobBadge) {
@@ -3193,7 +3412,9 @@
         mobHops.innerHTML = hopsTimeline.innerHTML;
       }
 
-      focusGodsEyeLock();
+      if (hasValidCoords && originLat !== null && originLng !== null) {
+        focusGodsEyeLock();
+      }
     }
 
     function focusHoloNode(lat, lng) {
@@ -3422,6 +3643,10 @@
       }
 
       holoAnimFrameId = requestAnimationFrame(holoRenderTick);
+
+      if (typeof isScanningForensic !== 'undefined' && isScanningForensic) {
+        return; // Pause 3D frame transformations during active forensic pipeline calculation
+      }
 
       // Snappy and smooth camera distance interpolation
       holoCurrentCamDist += (holoTargetCamDist - holoCurrentCamDist) * 0.20;
