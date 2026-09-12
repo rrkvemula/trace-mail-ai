@@ -40,7 +40,7 @@ class ForensicPipeline:
         hop_results = hop_analyzer.analyze()
 
         # 4. Cryptographic Authentication & DMARC Alignment
-        auth_validator = AuthValidator(parsed_data.get("headers", {}))
+        auth_validator = AuthValidator(parsed_data.get("headers", {}), hop_results.get("analyzed_hops", []))
         auth_results = auth_validator.audit()
 
         # 5. Train-at-start prototype ML baseline plus explainable rule scoring

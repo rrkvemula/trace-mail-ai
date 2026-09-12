@@ -144,19 +144,19 @@
                     <div class="verdict-badge" id="verdict-badge">NOT ANALYZED</div>
                 </article>
                 <article class="card summary-card">
-                    <span>Prototype ML probability</span>
+                    <span>Advisory text probability</span>
                     <strong id="ml-probability">--</strong>
-                    <small id="ml-label">Naive Bayes baseline</small>
+                    <small id="ml-label">Advisory signal (Experimental)</small>
                 </article>
                 <article class="card summary-card">
-                    <span>Reported authentication</span>
+                    <span>Authentication trust</span>
                     <strong id="auth-overall">--</strong>
-                    <small>Parsed from message headers</small>
+                    <small id="auth-overall-sub">Receiver-reported verification</small>
                 </article>
                 <article class="card summary-card">
-                    <span>Header consistency</span>
+                    <span>Evidence strength</span>
                     <strong id="meta-hri">--</strong>
-                    <small>Timestamp consistency score</small>
+                    <small id="evidence-strength-sub">Independent class corroboration</small>
                 </article>
             </div>
 
@@ -336,6 +336,9 @@
 
                     <button class="btn-export" id="btn-export-pdf" type="button">
                         <span>Export forensic analysis PDF</span>
+                    </button>
+                    <button class="btn-export" id="btn-whitelist-sender" type="button" style="margin-top: 10px; background: rgba(56, 189, 248, 0.12); border-color: var(--accent); color: var(--accent);">
+                        <span>🛡️ Allowlist Sender / Mark Safe</span>
                     </button>
                 </aside>
 

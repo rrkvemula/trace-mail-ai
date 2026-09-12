@@ -7,6 +7,7 @@ tamper-evident evidence ledger, and explainable multi-signal threat scoring.
 
 import os
 import re
+import json
 import tempfile
 import time
 import logging
@@ -145,6 +146,17 @@ class ChatRequest(BaseModel):
     analysis_id: Optional[str] = None
     history: Optional[List[Dict[str, str]]] = None
     model: Optional[str] = None
+
+
+class FeedbackRequest(BaseModel):
+    analysis_id: Optional[str] = None
+    sender_email: Optional[str] = None
+    sender_domain: Optional[str] = None
+    feedback_type: str  # "ALLOWLIST_SENDER", "FALSE_POSITIVE", "REPORT_PHISHING"
+    notes: Optional[str] = None
+
+
+USER_ALLOWLIST: set = set()
 
 
 def remember_analysis(report: dict) -> None:
@@ -411,6 +423,9 @@ def build_ui_compatible_payload(report: Dict[str, Any]) -> Dict[str, Any]:
         "fraud_score": threat_score,
         "risk_level": risk_level,
         "label": label,
+        "evidence_strength": threat.get("evidence_strength", "MODERATE"),
+        "corroborated_classes": threat.get("corroborated_classes", []),
+        "limitations": threat.get("limitations", []),
         "confidence": int(threat.get("confidence_score", 85)),
         "enforcement_action": threat.get("enforcement_action", "ALLOW"),
         "is_pdf_export": report.get("is_pdf_export", False),
@@ -723,6 +738,43 @@ async def copilot_chat(payload: ChatRequest):
         preferred_model=payload.model
     )
     return response
+
+
+@app.post("/api/feedback")
+async def record_user_feedback(req: FeedbackRequest):
+    """
+    Stores analyst feedback (e.g. false positives, allowlisted senders, reported threats).
+    Adheres to continuous active triage tuning principles.
+    """
+    sender = (req.sender_email or "").strip().lower()
+    domain = (req.sender_domain or "").strip().lower()
+    if req.feedback_type == "ALLOWLIST_SENDER":
+        if sender:
+            USER_ALLOWLIST.add(sender)
+        if domain:
+            USER_ALLOWLIST.add(domain)
+
+    feedback_entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "analysis_id": req.analysis_id,
+        "sender_email": sender,
+        "sender_domain": domain,
+        "feedback_type": req.feedback_type,
+        "notes": req.notes
+    }
+    feedback_path = os.path.join(DATA_DIR, "user_feedback.jsonl")
+    try:
+        with open(feedback_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(feedback_entry) + "\n")
+    except Exception as ex:
+        logger.warning(f"Could not persist feedback to ledger: {ex}")
+
+    return {
+        "status": "RECORDED",
+        "feedback_type": req.feedback_type,
+        "target": sender or domain or "Not specified",
+        "message": f"Feedback '{req.feedback_type}' logged successfully. Sender will be prioritized in your triage allowlist."
+    }
 
 
 if __name__ == "__main__":

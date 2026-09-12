@@ -27,6 +27,15 @@ class ThreatScorer:
 
     FREE_PROVIDERS = {"gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "aol.com", "protonmail.com"}
 
+    # Independent authentic forensic evidence classes (Excludes advisory ML and generic keywords)
+    EVIDENCE_CLASSES = {
+        "CRYPTO_AUTH": {"DMARC_FAIL", "SPF_FAIL", "FORGED_OR_UNTRUSTED_AUTHSERV"},
+        "IDENTITY_ROUTING": {"DISPLAY_NAME_SPOOFING", "REPLY_TO_ORG_MISMATCH", "REVERSED_TIMING_ANOMALY"},
+        "INFRA_URL": {"SSRF_INTERNAL_TARGET", "PUNYCODE_LOOKALIKE", "IP_LITERAL_URL", "SUSPICIOUS_URL"},
+        "PAYLOAD_SECURITY": {"WEAPONIZED_ATTACHMENT"},
+        "BEC_FINANCIAL_FRAUD": {"BEC_VENDOR_FINANCIAL_DIVERSION", "BEC_VERIFICATION_EVASION"},
+    }
+
     def __init__(
         self,
         parsed_email: Dict[str, Any],
@@ -65,7 +74,8 @@ class ThreatScorer:
             "DISPLAY_NAME_SPOOFING",
             "SSRF_INTERNAL_TARGET",
             "PUNYCODE_LOOKALIKE",
-            "WEAPONIZED_ATTACHMENT"
+            "WEAPONIZED_ATTACHMENT",
+            "FORGED_OR_UNTRUSTED_AUTHSERV"
         ])
 
         self._score_linguistic_urgency(crypto_authenticated=auth_discount_eligible)
@@ -83,11 +93,41 @@ class ThreatScorer:
         elif composite_pass:
             self.confidence = min(98.0, self.confidence + 10.0)
 
-        # 4. Clamp score between 0 and 100
+        # 4. Determine Active Independent Evidence Classes & Evidence Strength
+        active_hard_classes = []
+        for class_name, det_set in self.EVIDENCE_CLASSES.items():
+            if any(d in self.detections for d in det_set):
+                active_hard_classes.append(class_name)
+
+        if len(active_hard_classes) >= 2:
+            evidence_strength = "STRONG"
+        elif len(active_hard_classes) == 1:
+            evidence_strength = "MODERATE"
+        else:
+            evidence_strength = "LOW"
+
+        # 5. Clamp score between 0 and 100
         final_score = max(0.0, min(100.0, round(self.score, 1)))
         final_conf = max(10.0, min(99.0, round(self.confidence, 0)))
 
-        # 5. Determine Risk Category and Enforcement Policy
+        # 6. Policy Gate: High-risk categorization requires >=2 independent evidence classes,
+        # or a direct critical payload execution threat (WEAPONIZED_ATTACHMENT or SSRF_INTERNAL_TARGET).
+        # Prevents high-risk false-positive quarantine from isolated heuristics or text ML alone.
+        has_critical_payload = any(d in self.detections for d in ["WEAPONIZED_ATTACHMENT", "SSRF_INTERNAL_TARGET"])
+        if final_score >= 70.0 and len(active_hard_classes) < 2 and not has_critical_payload:
+            final_score = min(final_score, 65.0)
+            self.factors.append({
+                "category": "EVIDENCE_PRECEDENCE_POLICY",
+                "impact": "Policy Gate: Score Capped at 65",
+                "severity": "INFO",
+                "detail": (
+                    "High-risk classification suppressed: TraceMail policy requires at least two independent "
+                    "corroborating evidence classes (e.g. cryptographic failure, routing divergence, suspicious URL) "
+                    "before recommending quarantine. Advisory signals alone cannot trigger high risk."
+                )
+            })
+
+        # 7. Determine Risk Category and Enforcement Policy
         is_bec_diversion = "BEC_VENDOR_FINANCIAL_DIVERSION" in self.detections
         if final_score >= 70.0:
             category = "HIGH_RISK"
@@ -98,8 +138,8 @@ class ThreatScorer:
                 verdict = "HIGH RISK — ANALYST REVIEW REQUIRED"
             enforcement = "QUARANTINE_RECOMMENDED" if final_conf >= 70 else "WARN_REVIEW"
         elif final_score >= 35.0 or is_bec_diversion:
-            category = "SUSPICIOUS" if final_score < 70.0 else "HIGH_RISK"
-            color = "#FFD166" if final_score < 70.0 else "#F87171"
+            category = "SUSPICIOUS"
+            color = "#FFD166"
             if is_bec_diversion:
                 verdict = "ELEVATED BEC RISK — OUT-OF-BAND VERIFICATION REQUIRED"
             else:
@@ -111,17 +151,27 @@ class ThreatScorer:
             verdict = "LOW OBSERVED RISK — NOT A SAFETY GUARANTEE"
             enforcement = "MONITOR" if is_unverified else "ALLOW"
 
+        limitations = [
+            "Receiver-reported cryptographic status depends on boundary MTA integrity.",
+            "GeoIP coordinates identify mail transfer infrastructure, not the physical location of the sender.",
+            "Text model scores are advisory heuristics; authentic forensic evidence requires header/routing validation.",
+            "Cryptographic verification (SPF/DKIM/DMARC) confirms domain delivery origin, but does not guarantee the account is free from compromise (ATO)."
+        ]
+
         return {
             "threat_score": final_score,
             "confidence_score": final_conf,
             "risk_category": category,
+            "evidence_strength": evidence_strength,
+            "corroborated_classes": active_hard_classes,
             "badge_color": color,
             "verdict": verdict,
             "enforcement_action": enforcement,
             "detections": self.detections,
             "explainability_factors": self.factors,
-            "analysis_method": "EVIDENCE_PRECEDENCE_HYBRID_SCORING",
-            "model_status": "Explainable rules + Naive Bayes baseline with RFC 7489 alignment"
+            "limitations": limitations,
+            "analysis_method": "TWO_CLASS_EVIDENCE_PRECEDENCE_HYBRID_SCORING",
+            "model_status": "Evidence-first rule precedence + Advisory text signal (Experimental)"
         }
 
     def _score_authentication(self):
@@ -130,8 +180,18 @@ class ThreatScorer:
         dkim_status = self.auth.get("dkim", {}).get("status", "NONE")
         dmarc_status = self.auth.get("dmarc", {}).get("status", "NONE")
         dmarc_aligned = self.auth.get("dmarc", {}).get("dkim_aligned", False) or self.auth.get("dmarc", {}).get("spf_aligned", False)
+        evidence_status = self.auth.get("evidence_status", "")
 
-        if dmarc_status == "FAIL":
+        if evidence_status == "FORGED_OR_UNTRUSTED_AUTHSERV":
+            self.score += 30.0
+            self.detections.append("FORGED_OR_UNTRUSTED_AUTHSERV")
+            self.factors.append({
+                "category": "AUTHENTICATION",
+                "impact": "+30 pts",
+                "severity": "CRITICAL",
+                "detail": f"Authentication-Results header claims authserv-id '{self.auth.get('authserv_id')}', but does not match recipient domain or observed boundary MTAs (potential header injection)."
+            })
+        elif dmarc_status == "FAIL":
             self.score += 35.0
             self.detections.append("DMARC_FAIL")
             self.factors.append({

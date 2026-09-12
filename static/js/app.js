@@ -730,14 +730,14 @@ function renderDashboard(data) {
 
     // Authentication summary card color-coded
     const auth = data.authentication || {};
-    const overall = auth.overall_status || "UNVERIFIED";
+    const overall = auth.evidence_status || auth.overall_status || "UNVERIFIED";
     const authOverallEl = document.getElementById("auth-overall");
     if (authOverallEl) {
         authOverallEl.textContent = overall.replaceAll("_", " ");
         if (overall.includes("PASS")) {
             authOverallEl.style.color = "var(--green)";
             authOverallEl.style.textShadow = "0 0 15px rgba(52, 211, 153, 0.4)";
-        } else if (overall.includes("FAIL")) {
+        } else if (overall.includes("FAIL") || overall.includes("UNTRUSTED")) {
             authOverallEl.style.color = "var(--red)";
             authOverallEl.style.textShadow = "0 0 15px rgba(244, 63, 94, 0.4)";
         } else {
@@ -745,10 +745,33 @@ function renderDashboard(data) {
             authOverallEl.style.textShadow = "0 0 15px rgba(251, 191, 36, 0.4)";
         }
     }
+    if (auth.is_trusted_authserv === false && auth.authserv_id) {
+        setText("auth-overall-sub", `⚠️ Untrusted boundary authserv: ${auth.authserv_id}`);
+    } else if (auth.independent_dns_verified) {
+        setText("auth-overall-sub", "Receiver-reported + Live DNS verified");
+    } else {
+        setText("auth-overall-sub", "Receiver-reported verification");
+    }
 
-    const hopAnalysis = data.hops_analysis || {};
-    const hriScore = Number(hopAnalysis.header_consistency_score ?? 0);
-    animateValue("meta-hri", 0, hriScore, 1000, (v) => `${Math.round(v)}%`);
+    // Evidence strength & Multi-class corroboration
+    const evidenceStrength = data.evidence_strength || threat.evidence_strength || "MODERATE";
+    const hriEl = document.getElementById("meta-hri");
+    if (hriEl) {
+        hriEl.textContent = evidenceStrength;
+        if (evidenceStrength === "STRONG") {
+            hriEl.style.color = "var(--green)";
+            hriEl.style.textShadow = "0 0 15px rgba(52, 211, 153, 0.4)";
+        } else if (evidenceStrength === "MODERATE") {
+            hriEl.style.color = "var(--gold)";
+            hriEl.style.textShadow = "0 0 15px rgba(251, 191, 36, 0.4)";
+        } else {
+            hriEl.style.color = "var(--red)";
+            hriEl.style.textShadow = "0 0 15px rgba(244, 63, 94, 0.4)";
+        }
+    }
+    const corroboratedClasses = data.corroborated_classes || threat.corroborated_classes || [];
+    const count = corroboratedClasses.length;
+    setText("evidence-strength-sub", count >= 2 ? `Multi-class verified (${count} classes)` : (count === 1 ? `Single class (${corroboratedClasses[0]})` : "Advisory signal only"));
     
     // 3. FRONT-AND-CENTER AI NEURAL ENGINE SHOWCASE
     renderAIShowcase(ml);
@@ -800,6 +823,38 @@ function renderDashboard(data) {
         lenis.scrollTo("#geo-infrastructure-card", { offset: -30, duration: 1.3 });
     } else if (geoCard) {
         geoCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    // 8. Allowlist Sender / Mark Safe handler
+    const btnWhitelist = document.getElementById("btn-whitelist-sender");
+    if (btnWhitelist) {
+        btnWhitelist.onclick = async () => {
+            const sender = data.headers?.from || "";
+            const senderDomain = data.forensic_origin?.sender_domain_infrastructure || "";
+            btnWhitelist.disabled = true;
+            btnWhitelist.innerHTML = "<span>⏳ Adding to allowlist...</span>";
+            try {
+                const res = await fetch("/api/feedback", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        analysis_id: data.analysis_id || "",
+                        sender_email: sender,
+                        sender_domain: senderDomain,
+                        feedback_type: "ALLOWLIST_SENDER",
+                        notes: "Allowlisted by user from forensic triage dashboard"
+                    })
+                });
+                const resp = await res.json();
+                btnWhitelist.innerHTML = `<span>✅ ${resp.target || "Sender"} Allowlisted</span>`;
+                btnWhitelist.style.borderColor = "var(--green)";
+                btnWhitelist.style.color = "var(--green)";
+                btnWhitelist.style.background = "rgba(52, 211, 153, 0.12)";
+            } catch (e) {
+                btnWhitelist.disabled = false;
+                btnWhitelist.innerHTML = "<span>❌ Error recording allowlist</span>";
+            }
+        };
     }
 }
 

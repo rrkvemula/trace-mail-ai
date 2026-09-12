@@ -26,12 +26,23 @@ class AuthValidator:
         "hubspot.com", "postmarkapp.com", "sparkpostmail.com", "mandrillapp.com"
     }
 
+    # Known trusted boundary receiver MTAs
+    KNOWN_TRUSTED_RECEIVER_DOMAINS = {
+        "google.com", "mx.google.com", "googlemail.com",
+        "outlook.com", "protection.outlook.com", "microsoft.com", "office365.com",
+        "apple.com", "icloud.com", "mail.me.com",
+        "yahoo.com", "yahoodns.net",
+        "proton.me", "protonmail.ch", "fastmail.com", "zoho.com",
+        "mimecast.com", "pphosted.com", "barracudanetworks.com"
+    }
+
     # Cache for DNS TXT/DMARC queries to prevent redundant network lookups
     _DNS_CACHE: Dict[str, Dict[str, Any]] = {}
     _MAX_DNS_CACHE: int = 500
 
-    def __init__(self, headers: Dict[str, Any]):
+    def __init__(self, headers: Dict[str, Any], hops: Optional[List[Dict[str, Any]]] = None):
         self.headers = headers
+        self.hops = hops or []
         self.from_header = headers.get("from", "")
         self.return_path_header = headers.get("return_path", "")
         self.from_domain = self._extract_domain(self.from_header)
@@ -65,8 +76,42 @@ class AuthValidator:
             return ".".join(parts[-3:])
         return ".".join(parts[-2:])
 
+    def _evaluate_authserv_trust(self, authserv_id: str) -> Dict[str, Any]:
+        """
+        RFC 7601 Section 2.4: Evaluates whether the authserv-id in Authentication-Results
+        matches a trusted receiving edge MTA or recipient domain infrastructure.
+        Protects against attacker-injected fake Authentication-Results headers.
+        """
+        if not authserv_id:
+            return {"is_trusted": True, "reason": "No authserv-id declared"}
+
+        clean_id = authserv_id.lower().strip()
+
+        # Check 1: If authserv-id matches sender domain, it is self-signed/forged by sender!
+        if self.from_domain and (clean_id == self.from_domain or clean_id.endswith("." + self.from_domain)):
+            return {"is_trusted": False, "reason": f"Untrusted authserv-id matches sender domain ({clean_id}); potential self-signed/forged header"}
+
+        # Check 2: Matches known trusted receiver MTAs
+        for trusted in self.KNOWN_TRUSTED_RECEIVER_DOMAINS:
+            if clean_id == trusted or clean_id.endswith("." + trusted):
+                return {"is_trusted": True, "reason": f"Matches trusted receiving MTA authority ({trusted})"}
+
+        # Check 3: Matches recipient or destination MX in hops (only by_mta is the receiving server!)
+        for hop in self.hops:
+            by_mta = str(hop.get("by_mta", "")).lower()
+            if clean_id in by_mta:
+                return {"is_trusted": True, "reason": f"Matches observed receiving relay hop MTA ({clean_id})"}
+
+        # Check 4: Matches recipient domain
+        to_hdr = str(self.headers.get("to", ""))
+        to_dom = self._extract_domain(to_hdr)
+        if to_dom and (clean_id == to_dom or clean_id.endswith("." + to_dom)):
+            return {"is_trusted": True, "reason": f"Matches recipient domain authority ({to_dom})"}
+
+        return {"is_trusted": False, "reason": f"Authserv-id '{clean_id}' does not match recipient domain or observed receiving MTAs"}
+
     def audit(self) -> Dict[str, Any]:
-        """Runs complete authentication audit adhering to RFC 7489."""
+        """Runs complete authentication audit adhering to RFC 7489 and RFC 7601."""
         spf_info = self._audit_spf()
         dkim_info = self._audit_dkim()
         dmarc_info = self._audit_dmarc(spf_info, dkim_info)
@@ -81,16 +126,6 @@ class AuthValidator:
             dkim_passed_and_aligned
         )
 
-        # Explicit failure vs unverified
-        if composite_pass:
-            overall_verdict = "REPORTED_PASS"
-        elif dmarc_info.get("status") == "FAIL" or (spf_info.get("status") == "FAIL" and dkim_info.get("status") == "FAIL"):
-            overall_verdict = "REPORTED_FAIL"
-        elif spf_info.get("status") == "NONE" and dkim_info.get("status") == "NONE":
-            overall_verdict = "UNVERIFIED"
-        else:
-            overall_verdict = "PARTIAL_OR_UNVERIFIED"
-
         # RFC 7601: Extract authserv-id from Authentication-Results
         authserv_id = ""
         auth_hdr = self.headers.get("authentication_results", [])
@@ -100,20 +135,62 @@ class AuthValidator:
             if m_authserv:
                 authserv_id = m_authserv.group(1).lower()
 
+        authserv_eval = self._evaluate_authserv_trust(authserv_id)
+        is_trusted_authserv = authserv_eval["is_trusted"]
+
+        # Determine evidence status and overall verdict
+        if not is_trusted_authserv and authserv_id:
+            overall_verdict = "UNTRUSTED_AUTHSERV"
+            evidence_status = "FORGED_OR_UNTRUSTED_AUTHSERV"
+            composite_pass = False
+        elif composite_pass:
+            overall_verdict = "REPORTED_PASS"
+            evidence_status = "RECEIVER_REPORTED_PASS"
+        elif dmarc_info.get("status") == "FAIL" or (spf_info.get("status") == "FAIL" and dkim_info.get("status") == "FAIL"):
+            overall_verdict = "REPORTED_FAIL"
+            evidence_status = "RECEIVER_REPORTED_FAIL"
+        elif spf_info.get("status") == "NONE" and dkim_info.get("status") == "NONE":
+            overall_verdict = "UNVERIFIED"
+            evidence_status = "UNVERIFIED"
+        else:
+            overall_verdict = "PARTIAL_OR_UNVERIFIED"
+            evidence_status = "PARTIAL_OR_UNVERIFIED"
+
+        has_live_dns = bool(dns_policies.get("spf_record") or dns_policies.get("dmarc_record"))
+        if has_live_dns:
+            dns_verification_status = "DNS_POLICY_RECORDED"
+        elif dns_policies.get("dns_query_status") == "INVALID_DOMAIN":
+            dns_verification_status = "INVALID_DOMAIN"
+        else:
+            dns_verification_status = "NO_PUBLISHED_POLICIES"
+
+        limitations = [
+            "Receiver-reported cryptographic status depends on boundary MTA integrity.",
+            "Cryptographic pass confirms domain delivery authenticity, not that the sender account is benign (e.g. Account Takeover / compromised mailbox)."
+        ]
+        if not is_trusted_authserv and authserv_id:
+            limitations.append(f"Header authserv-id '{authserv_id}' is unverified against recipient boundary infrastructure.")
+
         return {
             "overall_status": overall_verdict,
+            "evidence_status": evidence_status,
             "sender_domain": self.from_domain,
             "from_organizational_domain": self.get_organizational_domain(self.from_domain),
             "authserv_id": authserv_id,
+            "authserv_evaluation": authserv_eval,
+            "is_trusted_authserv": is_trusted_authserv,
             "spf": spf_info,
             "dkim": dkim_info,
             "dmarc": dmarc_info,
             "composite_pass": composite_pass,
             "is_unverified": overall_verdict == "UNVERIFIED",
             "dns_published_policies": dns_policies,
+            "dns_verification_status": dns_verification_status,
+            "independent_dns_verified": has_live_dns,
+            "limitations": limitations,
             "trust_notice": (
-                "Statuses are parsed from Authentication-Results and Received-SPF headers under RFC 7489. "
-                "Neutral or missing headers indicate unverified telemetry, not confirmed malice."
+                "Statuses are parsed from boundary Authentication-Results under RFC 7601 and RFC 7489. "
+                "Receiver-reported pass confirms domain origin, but does not guarantee the mailbox is free from account takeover."
             )
         }
 

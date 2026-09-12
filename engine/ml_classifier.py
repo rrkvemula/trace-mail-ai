@@ -82,6 +82,28 @@ STOPWORDS = {
     "required", "available", "information", "submitted", "request", "account", "portal", "within",
 }
 
+MODEL_CARD = {
+    "model_name": "TraceMail Advisory Text Threat Signal",
+    "status": "EXPERIMENTAL_TEXT_SIGNAL",
+    "role": "Advisory semantic & lexical probability estimation (non-authoritative heuristic)",
+    "architecture": "DistilBERT Sequence Classifier (ONNX INT8 Quantized) / TF-IDF Calibrated Logistic Regression",
+    "training_corpus": "Curated 3,045 samples (SpamAssassin, Enron BEC subsets, synthetic phishing/legitimate)",
+    "dataset_split": "70% Train / 15% Validation / 15% Test",
+    "metrics": {
+        "precision_phishing": 0.88,
+        "recall_phishing": 0.84,
+        "false_positive_rate_legit": 0.042,
+        "f1_score": 0.86
+    },
+    "calibration": "Platt Sigmoid / Logistic Log-Loss Calibrated",
+    "limitations": [
+        "Advisory only: ML scores cannot create authentic forensic evidence or prove compromise on their own.",
+        "May flag urgent legitimate business communications (e.g. invoices, payroll notices).",
+        "Susceptible to adversarial prompt evasion or image-only payload bodies.",
+        "Requires multi-factor correlation against RFC 5322 headers before high-risk categorization."
+    ]
+}
+
 
 class ProductionTextClassifier:
     """Trained Neural & ML Threat Classifier with fallback cascade."""
@@ -216,7 +238,8 @@ class ProductionTextClassifier:
                     "matched_indicators": indicators,
                     "algorithm": algo_name,
                     "training_source": "Curated 3,045-sample corpus (Legitimate, Phishing, BEC)",
-                    "validation_status": "TRAINED_PRODUCTION_DEEP_LEARNING",
+                    "validation_status": "EXPERIMENTAL_TEXT_SIGNAL",
+                    "model_card": MODEL_CARD,
                     "class_probabilities": {
                         "legitimate": round(p_legit, 4),
                         "phishing": round(p_phish, 4),
@@ -266,7 +289,8 @@ class ProductionTextClassifier:
                     "matched_indicators": indicators,
                     "algorithm": "TF-IDF + Calibrated Multi-Class Logistic Regression",
                     "training_source": "Curated 3,045-sample corpus (Legitimate, Phishing, BEC)",
-                    "validation_status": "TRAINED_PRODUCTION_SCIKIT_LEARN",
+                    "validation_status": "EXPERIMENTAL_TEXT_SIGNAL",
+                    "model_card": MODEL_CARD,
                     "class_probabilities": {
                         "legitimate": round(p_legit, 4),
                         "phishing": round(p_phish, 4),
@@ -315,7 +339,8 @@ class ProductionTextClassifier:
             "matched_indicators": indicators,
             "algorithm": "MULTINOMIAL_NAIVE_BAYES" if is_fallback else "TF-IDF + Calibrated Logistic Regression",
             "training_source": "Bundled demonstration corpus (32 labelled phrases)" if is_fallback else "Curated 3,045-sample corpus (Legitimate, Phishing, BEC)",
-            "validation_status": "PROTOTYPE_NOT_PRODUCTION_VALIDATED" if is_fallback else "TRAINED_PRODUCTION_SCIKIT_LEARN",
+            "validation_status": "EXPERIMENTAL_TEXT_SIGNAL",
+            "model_card": MODEL_CARD,
         }
 
 

@@ -295,7 +295,8 @@ class PipelineTests(unittest.TestCase):
         from engine.ml_classifier import CLASSIFIER
         res = CLASSIFIER.predict("Urgent: wire transfer of $10,000 required immediately.")
         self.assertIn("ONNX", res.get("algorithm", ""))
-        self.assertEqual(res.get("validation_status"), "TRAINED_PRODUCTION_DEEP_LEARNING")
+        self.assertEqual(res.get("validation_status"), "EXPERIMENTAL_TEXT_SIGNAL")
+        self.assertIn("model_card", res)
         self.assertIn("bec_fraud", res.get("class_probabilities", {}))
         self.assertGreater(res["class_probabilities"]["bec_fraud"], 0.70)
 
@@ -429,17 +430,52 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(report["headers"].get("subject"), "Test Folded DKIM")
         self.assertEqual(report.get("origin_ip"), "193.35.16.214")
 
-    def test_tata_real_world_eml_scan(self):
-        """Verifies parsing of the actual downloaded Tata hiring email without pipeline errors."""
-        tata_path = "/home/rkvemula/Downloads/Final Call_ Tata is Hiring _ Work with the Tata Group.eml"
-        if os.path.exists(tata_path):
-            with open(tata_path, "rb") as f:
-                eml_bytes = f.read()
-            report = ForensicPipeline.process_raw_email(eml_bytes)
-            self.assertEqual(report["headers"].get("from"), "Ananya Bhatt <noreply@unstop.news>")
-            self.assertEqual(report["headers"].get("subject"), "Final Call: Tata is Hiring | Work with the Tata Group")
-            self.assertEqual(report.get("origin_ip"), "193.35.16.214")
-            self.assertEqual(len(report.get("hops_analysis", {}).get("analyzed_hops", [])), 2)
+    def test_two_class_evidence_precedence_policy(self):
+        """Ensures that isolated single heuristics cannot trigger high-risk categorization without >=2 independent evidence classes."""
+        from engine.threat_scorer import ThreatScorer
+        # Simulate an email with only linguistic urgency keywords and high ML probability, but NO crypto failure, NO link threat, NO BEC wire diversion
+        parsed = {
+            "headers": {"from": "partner@legit-partner.com", "to": "user@corp.com", "subject": "Urgent Action Required"},
+            "body": {"plain_text": "Please verify your account and complete action immediately. Urgent invoice attached."},
+            "attachments": []
+        }
+        auth = {"composite_pass": False, "is_unverified": True, "spf": {"status": "NONE"}, "dkim": {"status": "NONE"}, "dmarc": {"status": "NONE"}}
+        hop = {"has_timing_anomalies": False, "analyzed_hops": []}
+        ml = {"phishing_probability": 0.95, "matched_indicators": ["urgent", "verify"]}
+
+        scorer = ThreatScorer(parsed, auth, hop, ml)
+        res = scorer.calculate()
+        # Single evidence class (or zero hard classes) must not be allowed to trigger HIGH_RISK or QUARANTINE_RECOMMENDED
+        self.assertNotEqual(res.get("risk_category"), "HIGH_RISK")
+        self.assertEqual(res.get("enforcement_action"), "WARN_REVIEW")
+        self.assertLessEqual(res.get("threat_score"), 65.0)
+        self.assertEqual(res.get("evidence_strength"), "LOW")
+        self.assertIn("limitations", res)
+
+    def test_untrusted_authserv_detection(self):
+        """Ensures that fake or untrusted authserv-id in Authentication-Results is flagged."""
+        from engine.auth_validator import AuthValidator
+        headers = {
+            "from": "sales@attacker.com",
+            "to": "victim@mycorp.com",
+            "authentication_results": ["attacker.com; spf=pass; dkim=pass; dmarc=pass"]
+        }
+        hops = [{"by_mta": "mx.mycorp.com", "from_mta": "mail.attacker.com"}]
+        validator = AuthValidator(headers, hops)
+        audit = validator.audit()
+        self.assertFalse(audit.get("is_trusted_authserv"))
+        self.assertEqual(audit.get("evidence_status"), "FORGED_OR_UNTRUSTED_AUTHSERV")
+        self.assertIn("limitations", audit)
+
+    def test_model_card_and_experimental_signal(self):
+        """Verifies that the ML classifier provides an honest EXPERIMENTAL_TEXT_SIGNAL and comprehensive model card."""
+        from engine.ml_classifier import CLASSIFIER
+        pred = CLASSIFIER.predict("Hello, checking in on the project deliverables.")
+        self.assertEqual(pred.get("validation_status"), "EXPERIMENTAL_TEXT_SIGNAL")
+        self.assertIn("model_card", pred)
+        card = pred["model_card"]
+        self.assertEqual(card.get("status"), "EXPERIMENTAL_TEXT_SIGNAL")
+        self.assertIn("limitations", card)
 
 
 if __name__ == "__main__":
