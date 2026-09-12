@@ -91,10 +91,20 @@ class AuthValidator:
         else:
             overall_verdict = "PARTIAL_OR_UNVERIFIED"
 
+        # RFC 7601: Extract authserv-id from Authentication-Results
+        authserv_id = ""
+        auth_hdr = self.headers.get("authentication_results", [])
+        if auth_hdr:
+            first_ar = str(auth_hdr[0]).strip()
+            m_authserv = re.match(r'^([a-zA-Z0-9.\-_]+)\s*;', first_ar)
+            if m_authserv:
+                authserv_id = m_authserv.group(1).lower()
+
         return {
             "overall_status": overall_verdict,
             "sender_domain": self.from_domain,
             "from_organizational_domain": self.get_organizational_domain(self.from_domain),
+            "authserv_id": authserv_id,
             "spf": spf_info,
             "dkim": dkim_info,
             "dmarc": dmarc_info,

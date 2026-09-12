@@ -7,11 +7,17 @@ import ipaddress
 import urllib.request
 import json
 import re
+import os
 import threading
 from typing import Dict, Any, Optional
 
 class GeoIPResolver:
     """Enriches IP addresses with geographic and network telemetry."""
+
+    # Air-gapped zero-egress security default
+    # External HTTP lookups are disabled by default to eliminate DoS, network egress tracking, and latency bottlenecks.
+    ENABLE_EXTERNAL_LOOKUPS: bool = os.environ.get("TRACEMAIL_ENABLE_EXTERNAL_GEOIP", "0").lower() in ("1", "true", "yes")
+    EXTERNAL_LOOKUP_TIMEOUT: float = 0.5
 
     # In-memory cache to prevent redundant lookups with LRU bounds
     CACHE: Dict[str, Dict[str, Any]] = {}
@@ -322,10 +328,13 @@ class GeoIPResolver:
         except ValueError:
             return cls._empty_geo(f"Invalid IP format: {ip}")
 
-        # Attempt resolution through public endpoints.
-        geo_data = cls._query_ip_api(ip)
-        if not geo_data:
-            geo_data = cls._unavailable_geo(ip, "Live GeoIP lookup was unavailable")
+        # Attempt resolution through public endpoints only if explicitly enabled (air-gapped default)
+        if cls.ENABLE_EXTERNAL_LOOKUPS:
+            geo_data = cls._query_ip_api(ip)
+            if not geo_data:
+                geo_data = cls._unavailable_geo(ip, "Live GeoIP lookup was unavailable")
+        else:
+            geo_data = cls._unavailable_geo(ip, "Air-gapped mode: external GeoIP lookups disabled for zero-egress security")
 
         # Anonymity & Infrastructure Checks
         is_tor = ip in cls.KNOWN_TOR_IPS
@@ -427,7 +436,7 @@ class GeoIPResolver:
         try:
             url = f"https://ipwho.is/{ip}"
             req = urllib.request.Request(url, headers={"User-Agent": "TRACE-MAIL-AI/1.0"})
-            with urllib.request.urlopen(req, timeout=2.0) as resp:
+            with urllib.request.urlopen(req, timeout=cls.EXTERNAL_LOOKUP_TIMEOUT) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 if data.get("success") is True:
                     connection = data.get("connection") or {}
@@ -463,7 +472,7 @@ class GeoIPResolver:
         try:
             url = f"http://ip-api.com/json/{ip}"
             req = urllib.request.Request(url, headers={"User-Agent": "curl/7.88.1"})
-            with urllib.request.urlopen(req, timeout=2.0) as resp:
+            with urllib.request.urlopen(req, timeout=cls.EXTERNAL_LOOKUP_TIMEOUT) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 if data.get("status") == "success":
                     lat = data.get("lat")

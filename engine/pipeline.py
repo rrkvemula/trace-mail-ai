@@ -22,12 +22,17 @@ class ForensicPipeline:
         parser = EmailParser(raw_email_content)
         parsed_data = parser.parse()
 
-        # 2. Enrich Hops with Geolocation Telemetry
+        # 2. Enrich Hops with Geolocation Telemetry (Bounded to max 5 hops to prevent DoS)
         enriched_hops = []
-        for h in parsed_data.get("hops", []):
+        raw_hops = parsed_data.get("hops", [])
+        MAX_HOPS_TO_ENRICH = 5
+        for i, h in enumerate(raw_hops):
             hop_copy = dict(h)
             ip_to_resolve = hop_copy.get("ip")
-            hop_copy["geo"] = GeoIPResolver.resolve(ip_to_resolve)
+            if i < MAX_HOPS_TO_ENRICH:
+                hop_copy["geo"] = GeoIPResolver.resolve(ip_to_resolve)
+            else:
+                hop_copy["geo"] = GeoIPResolver._empty_geo("Hop depth exceeded safe enrichment limit", is_private=False)
             enriched_hops.append(hop_copy)
 
         # 3. Analyze Hop Latency & Anti-Forged Relay Heuristics (ΔT)

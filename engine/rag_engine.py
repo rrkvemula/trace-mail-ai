@@ -245,8 +245,8 @@ class ForensicRAG:
                     if matched_tokens:
                         matches.append({
                             "analysis_id": record.get("analysis_id"),
-                            "timestamp": record.get("timestamp_iso"),
-                            "forensic_hash": record.get("forensic_hash"),
+                            "timestamp": record.get("recorded_at_utc") or record.get("timestamp_iso"),
+                            "forensic_hash": record.get("evidence_hash") or record.get("forensic_hash"),
                             "record_hash": record.get("record_hash"),
                             "matched_indicators": matched_tokens
                         })

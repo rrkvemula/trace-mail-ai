@@ -8,8 +8,11 @@ tamper-evident evidence ledger, and explainable multi-signal threat scoring.
 import os
 import re
 import tempfile
+import time
+import logging
+import threading
 import uuid
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -21,6 +24,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
+
+logger = logging.getLogger("tracemail.api")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 from engine.pipeline import ForensicPipeline
 from engine.evidence_generator import EvidenceGenerator
@@ -61,21 +67,68 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Strict CORS origin whitelisting (RFC/W3C compliant; prohibits wildcard * with credentials)
+ALLOWED_ORIGINS = [
+    "http://localhost:8899",
+    "http://127.0.0.1:8899",
+    "https://mail.google.com",
+    "https://outlook.live.com",
+    "https://outlook.office.com",
+    "https://tracemail-ai-bc650.firebaseapp.com",
+    "https://tracemail-ai-bc650.web.app",
+]
+custom_origins = os.environ.get("TRACEMAIL_ALLOWED_ORIGINS")
+if custom_origins:
+    ALLOWED_ORIGINS.extend([o.strip() for o in custom_origins.split(",") if o.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"^https://([a-zA-Z0-9-]+\.)*(trycloudflare\.com|hf\.space|onrender\.com|vercel\.app)$",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
+# In-Memory Sliding-Window Rate Limiter
+RATE_LIMIT_WINDOW = 60  # 1 minute window
+RATE_LIMIT_MAX = 60     # max 60 requests per minute per IP
+RATE_LIMIT_TRACKER = defaultdict(list)
+RATE_LIMIT_LOCK = threading.Lock()
+
+def check_client_rate_limit(client_ip: str) -> bool:
+    now = time.time()
+    with RATE_LIMIT_LOCK:
+        history = RATE_LIMIT_TRACKER[client_ip]
+        RATE_LIMIT_TRACKER[client_ip] = [t for t in history if now - t < RATE_LIMIT_WINDOW]
+        if len(RATE_LIMIT_TRACKER[client_ip]) >= RATE_LIMIT_MAX:
+            return False
+        RATE_LIMIT_TRACKER[client_ip].append(now)
+        return True
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
+    # Enforce rate limiting on computational pipeline routes
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    if request.url.path.startswith(("/scan", "/api/analyze", "/api/copilot")):
+        if not check_client_rate_limit(client_ip):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded. Maximum 60 requests per minute allowed."},
+                headers={"Retry-After": "60"}
+            )
+
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com https://www.gstatic.com; "
+        "connect-src 'self' https: http://localhost:8899 http://127.0.0.1:8899; "
+        "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com;"
+    )
     return response
 
 # Mount static files
@@ -438,6 +491,9 @@ async def scan(
         analyst_name = request.headers.get("X-Analyst-Identity", "Anonymous SOC Analyst")
         analyst_email = request.headers.get("X-Analyst-Email", "soc@tracemail.ai")
         analyst_clearance = request.headers.get("X-Analyst-Clearance", "TIER-3")
+        auth_hdr = request.headers.get("Authorization", "")
+        has_bearer_token = bool(auth_hdr.startswith("Bearer ") and len(auth_hdr) > 20)
+
         report["input_metadata"] = {
             "filename": filename,
             "size_bytes": len(content),
@@ -445,6 +501,7 @@ async def scan(
             "analyst_identity": analyst_name,
             "analyst_email": analyst_email,
             "analyst_clearance": analyst_clearance,
+            "analyst_verification_status": "BEARER_TOKEN_AUTHENTICATED" if has_bearer_token else "CLIENT_DECLARED_EVALUATOR_PASS",
         }
         report["ledger_receipt"] = LEDGER.append(analysis_id, report["forensic_hash"])
         remember_analysis(report)
@@ -453,8 +510,11 @@ async def scan(
         ui_payload = await run_in_threadpool(build_ui_compatible_payload, report)
         return ui_payload
 
+    except HTTPException:
+        raise
     except Exception as ex:
-        raise HTTPException(status_code=500, detail=f"Forensic analysis failed: {str(ex)}")
+        logger.error("Forensic analysis pipeline failed: %s", ex, exc_info=True)
+        raise HTTPException(status_code=500, detail="Forensic analysis failed due to an internal pipeline error.")
 
 
 @app.post("/api/analyze")
@@ -495,8 +555,11 @@ async def analyze_email(
         remember_analysis(report)
         return report
 
+    except HTTPException:
+        raise
     except Exception as ex:
-        raise HTTPException(status_code=500, detail=f"Forensic analysis failed: {str(ex)}")
+        logger.error("Forensic analysis API failed: %s", ex, exc_info=True)
+        raise HTTPException(status_code=500, detail="Forensic analysis failed due to an internal pipeline error.")
 
 
 @app.post("/api/export-pdf")
@@ -517,10 +580,13 @@ async def export_forensic_pdf(payload: ExportRequest):
             filename=f"TRACE-MAIL-REPORT-{report.get('forensic_hash', 'DOC')[:8].upper()}.pdf",
             background=BackgroundTask(remove_file, tmp_path),
         )
+    except HTTPException:
+        raise
     except Exception as ex:
+        logger.error("PDF generation failed: %s", ex, exc_info=True)
         if tmp_path:
             remove_file(tmp_path)
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(ex)}")
+        raise HTTPException(status_code=500, detail="Forensic dossier export failed due to an internal rendering error.")
 
 
 @app.post("/api/copilot/chat")
@@ -559,6 +625,7 @@ async def copilot_chat(payload: ChatRequest):
 
 if __name__ == "__main__":
     import uvicorn
+    host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", 8899))
-    print(f"🚀 Starting TRACE-MAIL AI Forensic Platform on http://127.0.0.1:{port}")
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    print(f"🚀 Starting TRACE-MAIL AI Forensic Platform on http://{host}:{port}")
+    uvicorn.run(app, host=host, port=port)

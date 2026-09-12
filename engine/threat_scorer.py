@@ -55,8 +55,21 @@ class ThreatScorer:
         self._score_display_spoofing()
         self._score_reply_to_and_bec()
         self._score_links_and_attachments()
-        self._score_linguistic_urgency(crypto_authenticated=composite_pass)
-        self._score_ml_baseline(crypto_authenticated=composite_pass)
+
+        # Invariant Protection: If the message exhibits severe BEC financial diversion,
+        # impersonation, or dangerous links, do NOT allow reported auth passes to suppress risk.
+        # This protects against Account Takeover (ATO) and forged Authentication-Results.
+        auth_discount_eligible = composite_pass and not any(d in self.detections for d in [
+            "BEC_VENDOR_FINANCIAL_DIVERSION",
+            "REPLY_TO_ORG_MISMATCH",
+            "DISPLAY_NAME_SPOOFING",
+            "SSRF_INTERNAL_TARGET",
+            "PUNYCODE_LOOKALIKE",
+            "WEAPONIZED_ATTACHMENT"
+        ])
+
+        self._score_linguistic_urgency(crypto_authenticated=auth_discount_eligible)
+        self._score_ml_baseline(crypto_authenticated=auth_discount_eligible)
 
         # 3. Adjust Confidence Calibration
         if is_unverified:
