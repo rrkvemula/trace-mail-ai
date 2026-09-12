@@ -639,7 +639,10 @@
               <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
               ORIGIN TRACE → INBOX
             </span>
-            <span id="ipLabel" class="text-cyan-300 font-bold">AWAITING SCAN TARGET</span>
+            <div class="flex items-center gap-2">
+              <span id="ipLabel" class="text-cyan-300 font-bold">AWAITING SCAN TARGET</span>
+              <span id="geoSummaryBadge" class="hidden px-2.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 text-[9px] font-bold"></span>
+            </div>
           </div>
 
           <!-- Quick Tip Pill -->
@@ -751,6 +754,34 @@
             </div>
           </div>
 
+          <!-- Sender & Origin Forensic Dossier Strip -->
+          <div id="senderSummaryStrip" class="glass rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono border border-cyan-500/20 bg-black/40">
+            <div class="flex flex-col">
+              <span class="text-[10px] opacity-50 uppercase tracking-widest flex items-center gap-1.5">
+                <i class="fa-solid fa-user-tag text-cyan-400"></i> Sender Identity
+              </span>
+              <span id="verdictSenderFrom" class="text-white font-bold truncate mt-0.5" title="Sender From Header">--</span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[10px] opacity-50 uppercase tracking-widest flex items-center gap-1.5">
+                <i class="fa-solid fa-network-wired text-cyan-400"></i> Originating IP
+              </span>
+              <span id="verdictOriginIp" class="text-cyan-300 font-bold truncate mt-0.5">--</span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[10px] opacity-50 uppercase tracking-widest flex items-center gap-1.5">
+                <i class="fa-solid fa-location-dot text-amber-400"></i> Sender Location
+              </span>
+              <span id="verdictSenderLoc" class="text-amber-300 font-bold truncate mt-0.5" title="Physical / Geopolitical Location">--</span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[10px] opacity-50 uppercase tracking-widest flex items-center gap-1.5">
+                <i class="fa-solid fa-tower-broadcast text-emerald-400"></i> Routing Carrier / ISP
+              </span>
+              <span id="verdictSenderIsp" class="text-slate-300 truncate mt-0.5" title="Origin Network ISP / ASN">--</span>
+            </div>
+          </div>
+
           <!-- 2 Columns: Reasons & BEC Vector -->
           <div class="grid md:grid-cols-2 gap-6">
             <!-- Key Risk Indicators -->
@@ -819,7 +850,9 @@
                 <tr><td class="py-2.5 opacity-50 w-48">Sender From Header:</td><td id="hdrFrom" class="py-2.5 text-white">--</td></tr>
                 <tr><td class="py-2.5 opacity-50">Envelope Return-Path:</td><td id="hdrReturnPath" class="py-2.5 text-white">--</td></tr>
                 <tr><td class="py-2.5 opacity-50">Reply-To Route:</td><td id="hdrReplyTo" class="py-2.5 text-white">--</td></tr>
-                <tr><td class="py-2.5 opacity-50">Originating IP:</td><td id="hdrOriginIp" class="py-2.5 text-cyan-300">--</td></tr>
+                <tr><td class="py-2.5 opacity-50">Originating IP:</td><td id="hdrOriginIp" class="py-2.5 text-cyan-300 font-bold">--</td></tr>
+                <tr><td class="py-2.5 opacity-50">Sender Physical Location:</td><td id="hdrSenderLoc" class="py-2.5 text-amber-300 font-bold">--</td></tr>
+                <tr><td class="py-2.5 opacity-50">Sender Routing Authority (ISP):</td><td id="hdrSenderIsp" class="py-2.5 text-slate-300">--</td></tr>
                 <tr><td class="py-2.5 opacity-50">Total Intermediate Hops:</td><td id="hdrHops" class="py-2.5 text-white">--</td></tr>
                 <tr><td class="py-2.5 opacity-50">Spoof Index:</td><td id="hdrSpoof" class="py-2.5 text-white">--</td></tr>
               </tbody>
@@ -1720,8 +1753,45 @@
       applyPillStatus('spf', h.spf);
       applyPillStatus('dkim', h.dkim);
       applyPillStatus('dmarc', h.dmarc);
+
+      // Resolve comprehensive sender & origin intelligence
+      const tr = j.trace || {};
+      const geo = tr.geo || j.origin_geo || {};
+      const originIp = h.origin_ip || geo.ip || j.origin_ip || 'Loopback / Internal';
+
+      let senderLocStr = j.origin_location || h.origin_location || '';
+      if (!senderLocStr || senderLocStr === 'Unknown Location') {
+        const city = (geo.city && geo.city !== 'Unavailable') ? geo.city : '';
+        const region = (geo.region && geo.region !== 'Unavailable' && geo.region !== city) ? geo.region : '';
+        const country = (geo.country && geo.country !== 'Unavailable') ? geo.country : '';
+        if (city && country) {
+          senderLocStr = region ? `${city}, ${region}, ${country}` : `${city}, ${country}`;
+        } else if (country) {
+          senderLocStr = country;
+        } else if (city) {
+          senderLocStr = city;
+        } else if (geo.is_private || geo.status === 'INTERNAL_ENCLAVE') {
+          senderLocStr = 'Internal Enterprise Enclave (RFC 1918)';
+        } else {
+          senderLocStr = geo.note || 'Location Unavailable';
+        }
+      }
+
+      const senderIspStr = geo.isp || geo.org || geo.organization || h.origin_isp || j.origin_isp || 'Registered Infrastructure';
+
       const ipLabelEl = document.getElementById('ipLabel');
-      if (ipLabelEl) ipLabelEl.textContent = h.origin_ip || 'INTERNAL RELAY';
+      if (ipLabelEl) ipLabelEl.textContent = originIp;
+      const geoSummaryBadge = document.getElementById('geoSummaryBadge');
+      if (geoSummaryBadge) {
+        geoSummaryBadge.textContent = '📍 ' + senderLocStr;
+        geoSummaryBadge.classList.remove('hidden');
+      }
+
+      // Populate Executive Verdict Tab Sender Dossier Strip
+      const vFrom = document.getElementById('verdictSenderFrom'); if (vFrom) vFrom.innerText = h.from || 'Not specified';
+      const vIp = document.getElementById('verdictOriginIp'); if (vIp) vIp.innerText = originIp;
+      const vLoc = document.getElementById('verdictSenderLoc'); if (vLoc) vLoc.innerText = '📍 ' + senderLocStr;
+      const vIsp = document.getElementById('verdictSenderIsp'); if (vIsp) vIsp.innerText = senderIspStr;
 
       // Reveal Results Section with 3D Spatial Slide
       const emptyState = document.getElementById('resEmptyState');
@@ -1824,7 +1894,9 @@
         }
       }
       const hdrRT = document.getElementById('hdrReplyTo'); if (hdrRT) hdrRT.innerText = h.reply_to || 'Matching From';
-      const hdrIP = document.getElementById('hdrOriginIp'); if (hdrIP) hdrIP.innerText = h.origin_ip || 'Private / Loopback Relay';
+      const hdrIP = document.getElementById('hdrOriginIp'); if (hdrIP) hdrIP.innerText = originIp;
+      const hdrSLoc = document.getElementById('hdrSenderLoc'); if (hdrSLoc) hdrSLoc.innerText = '📍 ' + senderLocStr;
+      const hdrSIsp = document.getElementById('hdrSenderIsp'); if (hdrSIsp) hdrSIsp.innerText = senderIspStr;
       const hopsCount = typeof h.hops === 'number' ? h.hops : (Array.isArray(h.hops) ? h.hops.length : (h.total_hops || 0));
       const hdrHp = document.getElementById('hdrHops'); if (hdrHp) hdrHp.innerText = hopsCount + ' intermediate hops recorded';
       const hdrSp = document.getElementById('hdrSpoof'); if (hdrSp) hdrSp.innerText = (h.spoof_score || 0) + ' / 100';
@@ -1853,12 +1925,10 @@
       }
 
       // TAB 4: Geo & WHOIS Fill
-      const tr = j.trace || {};
-      const geo = tr.geo || {};
-      const gIp = document.getElementById('geoIpVal'); if (gIp) gIp.innerText = geo.ip || h.origin_ip || 'N/A';
-      const gLoc = document.getElementById('geoLocVal'); if (gLoc) gLoc.innerText = (geo.city || 'Unknown') + ', ' + (geo.region ? geo.region + ', ' : '') + (geo.country || 'Unknown');
+      const gIp = document.getElementById('geoIpVal'); if (gIp) gIp.innerText = originIp;
+      const gLoc = document.getElementById('geoLocVal'); if (gLoc) gLoc.innerText = senderLocStr;
       const gCoord = document.getElementById('geoCoordsVal'); if (gCoord) gCoord.innerText = geo.loc || (geo.lat ? (geo.lat + ', ' + geo.lon) : (geo.latitude ? (geo.latitude + ', ' + geo.longitude) : 'N/A'));
-      const gOrg = document.getElementById('geoOrgVal'); if (gOrg) gOrg.innerText = geo.org || geo.organization || 'N/A';
+      const gOrg = document.getElementById('geoOrgVal'); if (gOrg) gOrg.innerText = senderIspStr;
       const gSrc = document.getElementById('geoSourceVal'); if (gSrc) gSrc.innerText = geo.source || geo.note || 'Multi-Signal Intelligence';
 
       const whoisData = geo.whois || {};
@@ -2951,24 +3021,34 @@
       let originCity = "Frankfurt", originCountry = "Germany", originIp = "185.220.101.5", originIsp = "Tor Exit Node";
 
       if (report) {
-        const traceGeo = report.trace?.geo;
-        if (traceGeo && !isNaN(traceGeo.latitude) && !isNaN(traceGeo.longitude)) {
-          originLat = Number(traceGeo.latitude);
-          originLng = Number(traceGeo.longitude);
-          originCity = traceGeo.city || originCity;
-          originCountry = traceGeo.country || originCountry;
-          originIp = traceGeo.ip || report.headers?.origin_ip || originIp;
-          originIsp = traceGeo.isp || traceGeo.org || originIsp;
-        } else if (report.hops_analysis && report.hops_analysis.length > 0) {
+        const traceGeo = report.trace?.geo || report.origin_geo;
+        if (traceGeo) {
+          if (traceGeo.city && traceGeo.city !== 'Unavailable') originCity = traceGeo.city;
+          if (traceGeo.country && traceGeo.country !== 'Unavailable') originCountry = traceGeo.country;
+          if (traceGeo.ip || report.headers?.origin_ip || report.origin_ip) originIp = traceGeo.ip || report.headers?.origin_ip || report.origin_ip;
+          if (traceGeo.isp || traceGeo.org || report.headers?.origin_isp || report.origin_isp) originIsp = traceGeo.isp || traceGeo.org || report.headers?.origin_isp || report.origin_isp;
+
+          const rawLat = traceGeo.latitude ?? traceGeo.lat;
+          const rawLng = traceGeo.longitude ?? traceGeo.lon;
+          if (rawLat !== null && rawLat !== undefined && rawLat !== '' && !isNaN(Number(rawLat)) &&
+              rawLng !== null && rawLng !== undefined && rawLng !== '' && !isNaN(Number(rawLng))) {
+            originLat = Number(rawLat);
+            originLng = Number(rawLng);
+          }
+        }
+        if ((!originCity || originCity === "Frankfurt") && report.hops_analysis && report.hops_analysis.length > 0) {
           for (const h of report.hops_analysis) {
             const hg = h.geo || {};
-            if (!isNaN(hg.latitude) && !isNaN(hg.longitude)) {
-              originLat = Number(hg.latitude);
-              originLng = Number(hg.longitude);
-              originCity = hg.city || originCity;
-              originCountry = hg.country || originCountry;
-              originIp = h.ip || hg.ip || originIp;
-              originIsp = hg.isp || hg.org || originIsp;
+            const hLat = hg.latitude ?? hg.lat;
+            const hLng = hg.longitude ?? hg.lon;
+            if (hLat !== null && hLat !== undefined && !isNaN(Number(hLat)) &&
+                hLng !== null && hLng !== undefined && !isNaN(Number(hLng))) {
+              originLat = Number(hLat);
+              originLng = Number(hLng);
+              if (hg.city && hg.city !== 'Unavailable') originCity = hg.city;
+              if (hg.country && hg.country !== 'Unavailable') originCountry = hg.country;
+              if (h.ip || hg.ip) originIp = h.ip || hg.ip;
+              if (hg.isp || hg.org) originIsp = hg.isp || hg.org;
               break;
             }
           }

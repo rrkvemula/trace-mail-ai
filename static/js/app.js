@@ -762,12 +762,18 @@ function renderDashboard(data) {
     setText("meta-total-hops", hopAnalysis.analyzed_hops?.length ?? 0);
 
     const originEvidence = data.origin_evidence || {};
-    const geo = data.origin_geo || {};
-    const geoLabel = geo.status === "RESOLVED" ? `${geo.city || "Unknown"}, ${geo.country || "Unknown"}` : "Lookup unavailable";
+    const geo = data.origin_geo || (data.trace && data.trace.geo) || {};
+    const city = geo.city && geo.city !== "Unavailable" ? geo.city : "";
+    const country = geo.country && geo.country !== "Unavailable" ? geo.country : "";
+    let geoLabel = (city && country) ? `${city}, ${country}` : (city || country || data.origin_location || "");
+    if (!geoLabel || geoLabel === "Unknown Location") {
+        geoLabel = geo.is_private ? "Internal Enterprise Enclave (RFC 1918)" : (geo.note || "Lookup unavailable");
+    }
     setText("meta-origin-geo", geoLabel);
     setText("meta-origin-confidence", `${originEvidence.confidence || "NONE"} / ${geo.confidence || "NONE"}`);
     setText("meta-origin-source", originEvidence.source || "No source evidence");
-    setText("meta-origin-isp", geo.status === "RESOLVED" ? `${geo.isp || "Unknown"} • ${geo.asn || "Unknown ASN"}` : "Unavailable");
+    const ispLabel = (geo.isp || geo.org || "Unavailable") + (geo.asn && geo.asn !== "Unavailable" ? ` • ${geo.asn}` : "");
+    setText("meta-origin-isp", ispLabel);
     setText("origin-note", `${originEvidence.note || ""} ${geo.note || ""}`.trim());
 
     const ledger = data.ledger_receipt || {};

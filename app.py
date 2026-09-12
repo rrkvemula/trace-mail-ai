@@ -337,12 +337,31 @@ def build_ui_compatible_payload(report: Dict[str, Any]) -> Dict[str, Any]:
     geo_payload["organization"] = org_val
     geo_payload["loc"] = f"{lat_val},{lon_val}" if lat_val is not None and lon_val is not None else None
 
+    city_str = geo_payload.get("city") or ""
+    country_str = geo_payload.get("country") or ""
+    if city_str and country_str and city_str != "Unavailable" and country_str != "Unavailable":
+        sender_loc = f"{city_str}, {country_str}"
+    elif city_str and city_str != "Unavailable":
+        sender_loc = city_str
+    elif country_str and country_str != "Unavailable":
+        sender_loc = country_str
+    elif geo_payload.get("is_private") or geo_payload.get("status") == "INTERNAL_ENCLAVE":
+        sender_loc = "Internal Enterprise Enclave"
+    else:
+        sender_loc = geo_payload.get("note") or "Unknown Location"
+
+    resolved_origin_ip = report.get("origin_ip") or geo_payload.get("ip") or "Loopback / Internal"
+
     return {
         "fraud_score": threat_score,
         "risk_level": risk_level,
         "label": label,
         "confidence": int(threat.get("confidence_score", 85)),
         "enforcement_action": threat.get("enforcement_action", "ALLOW"),
+        "origin_ip": resolved_origin_ip,
+        "origin_geo": geo_payload,
+        "origin_location": sender_loc,
+        "origin_isp": org_val,
         "headers": {
             "spf": spf_pass,
             "dkim": dkim_pass,
@@ -351,7 +370,10 @@ def build_ui_compatible_payload(report: Dict[str, Any]) -> Dict[str, Any]:
             "return_path": hdr.get("return_path", ""),
             "reply_to": hdr.get("reply_to", ""),
             "message_id": hdr.get("message_id", ""),
-            "origin_ip": report.get("origin_ip") or "Loopback / Internal",
+            "origin_ip": resolved_origin_ip,
+            "origin_location": sender_loc,
+            "origin_geo": geo_payload,
+            "origin_isp": org_val,
             "hops": hops_count,
             "total_hops": hops_count,
             "hops_list": hops_analyzed,
@@ -552,6 +574,26 @@ async def analyze_email(
             "is_demo_sample": filename in set(os.listdir(SAMPLES_DIR)) if os.path.exists(SAMPLES_DIR) else False,
         }
         report["ledger_receipt"] = LEDGER.append(report["analysis_id"], report["forensic_hash"])
+        o_geo = report.get("origin_geo") or {}
+        c_str = o_geo.get("city") or ""
+        co_str = o_geo.get("country") or ""
+        if c_str and co_str and c_str != "Unavailable" and co_str != "Unavailable":
+            report["origin_location"] = f"{c_str}, {co_str}"
+        elif c_str and c_str != "Unavailable":
+            report["origin_location"] = c_str
+        elif co_str and co_str != "Unavailable":
+            report["origin_location"] = co_str
+        elif o_geo.get("is_private") or o_geo.get("status") == "INTERNAL_ENCLAVE":
+            report["origin_location"] = "Internal Enterprise Enclave"
+        else:
+            report["origin_location"] = o_geo.get("note") or "Unknown Location"
+
+        if "trace" not in report:
+            report["trace"] = {"geo": o_geo}
+        if "headers" in report and isinstance(report["headers"], dict):
+            report["headers"]["origin_location"] = report["origin_location"]
+            report["headers"]["origin_geo"] = o_geo
+
         remember_analysis(report)
         return report
 

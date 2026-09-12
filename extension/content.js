@@ -171,7 +171,13 @@ function renderScanResultsInHUD(serverUrl, report) {
   const isHighRisk = score >= 50;
   const badgeClass = isHighRisk ? "tracemail-badge tracemail-badge-danger" : "tracemail-badge tracemail-badge-safe";
   const label = isHighRisk ? "THREAT DETECTED" : "VERIFIED SAFE";
-  const geo = report.trace && report.trace.geo ? report.trace.geo : {};
+  const geo = (report.trace && report.trace.geo) ? report.trace.geo : (report.origin_geo || {});
+  const city = geo.city && geo.city !== "Unavailable" ? geo.city : "";
+  const country = geo.country && geo.country !== "Unavailable" ? geo.country : "";
+  let locDisplay = (city && country) ? `${city}, ${country}` : (city || country || report.origin_location || "");
+  if (!locDisplay || locDisplay === "Unknown Location") {
+    locDisplay = geo.is_private ? "Internal Enclave (RFC 1918)" : (geo.note || "Perimeter Gateway");
+  }
 
   modal.innerHTML = `
     <div class="tracemail-hud-header">
@@ -198,7 +204,7 @@ function renderScanResultsInHUD(serverUrl, report) {
 
     <div class="tracemail-metric-row">
       <span style="color:#94a3b8;">Origin Location:</span>
-      <span style="color:#38bdf8;">${geo.city || "Gateway"}, ${geo.country || "Secure"}</span>
+      <span style="color:#38bdf8; font-weight:600;">📍 ${locDisplay}</span>
     </div>
 
     <div class="tracemail-metric-row">
