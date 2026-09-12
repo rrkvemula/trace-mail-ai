@@ -424,6 +424,8 @@ def build_ui_compatible_payload(report: Dict[str, Any]) -> Dict[str, Any]:
             "dkim": dkim_pass,
             "dmarc": dmarc_pass,
             "from": hdr.get("from", ""),
+            "subject": hdr.get("subject", ""),
+            "date": hdr.get("date", ""),
             "return_path": hdr.get("return_path", ""),
             "reply_to": hdr.get("reply_to", ""),
             "message_id": hdr.get("message_id", ""),
