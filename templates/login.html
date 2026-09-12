@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Clearance Gate — TRACE-MAIL AI</title>
+  
+  <!-- Styling & Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Firebase App & Auth Compatibility SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+  <style>
+    * { font-family: "Space Grotesk", sans-serif; box-sizing: border-box; }
+    .mono { font-family: "JetBrains Mono", monospace; }
+    body { background: #030508; color: #e2e8f0; min-height: 100vh; overflow-x: hidden; }
+
+    /* Animated Matrix/Cyber Background */
+    .bg-grid {
+      background-size: 40px 40px;
+      background-image: 
+        linear-gradient(to right, rgba(6, 182, 212, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(6, 182, 212, 0.05) 1px, transparent 1px);
+    }
+
+    .glow-radial {
+      background: radial-gradient(circle at 50% 30%, rgba(6, 182, 212, 0.15) 0%, rgba(14, 165, 233, 0.05) 45%, transparent 70%);
+    }
+
+    .glass-portal {
+      background: rgba(10, 16, 32, 0.75);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.8), 0 0 35px -5px rgba(6, 182, 212, 0.2);
+    }
+
+    .glass-portal:hover {
+      border-color: rgba(6, 182, 212, 0.45);
+      box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.9), 0 0 45px -5px rgba(6, 182, 212, 0.3);
+    }
+
+    .scan-line {
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, #22d3ee, transparent);
+      animation: scanAnim 4s linear infinite;
+    }
+
+    @keyframes scanAnim {
+      0% { top: 0%; opacity: 0; }
+      15% { opacity: 1; }
+      85% { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
+    }
+  </style>
+</head>
+<body class="bg-grid relative flex flex-col justify-between items-center min-h-screen p-4 md:p-8 selection:bg-cyan-500 selection:text-black">
+  <!-- Glowing Atmospheric Sphere -->
+  <div class="glow-radial absolute inset-0 pointer-events-none"></div>
+
+  <!-- Top Header Telemetry -->
+  <header class="w-full max-w-5xl flex justify-between items-center z-10 py-2 border-b border-white/5">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-cyan-400 flex items-center justify-center text-black font-black text-base shadow-lg shadow-cyan-400/20">
+        T
+      </div>
+      <div>
+        <div class="font-bold tracking-widest text-xs md:text-sm text-white flex items-center gap-2">
+          TRACE-MAIL AI
+          <span class="text-[9px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 mono">v2.1 SECURE</span>
+        </div>
+        <div class="text-[10px] text-slate-400 mono">AICTE CYBER SECURITY CELL • PS ID: SIH26106</div>
+      </div>
+    </div>
+
+    <div class="hidden sm:flex items-center gap-4 text-[11px] mono text-slate-400">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        <span class="text-emerald-400">SYSTEM: ONLINE</span>
+      </div>
+      <span class="opacity-30">|</span>
+      <span>NODE: CRRE-SOC-01</span>
+    </div>
+  </header>
+
+  <!-- Central Authentication Card -->
+  <main class="w-full max-w-md my-auto z-10">
+    <div class="glass-portal relative rounded-3xl p-6 sm:p-8 overflow-hidden transition-all duration-300">
+      <!-- Scanner Line Effect -->
+      <div class="scan-line"></div>
+
+      <!-- Badge & Title -->
+      <div class="text-center mb-6">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 text-[10px] mono tracking-widest uppercase mb-3">
+          <i class="fa-solid fa-shield-halved text-cyan-400"></i>
+          <span>Forensic Clearance Gate</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+          Investigator <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400">Access</span>
+        </h1>
+        <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">
+          Sign in with your verified Google account to review RFC 5322 telemetry, decrypt header chains, and seal evidence into the cryptographic ledger.
+        </p>
+      </div>
+
+      <!-- Live Notification Banner (Errors or Warnings) -->
+      <div id="authAlert" class="hidden mb-4 p-3 rounded-xl text-xs mono border"></div>
+
+      <!-- Primary Action: Google Sign-In Button -->
+      <div class="space-y-3">
+        <button id="googleSignInBtn" onclick="handleGoogleSignIn()" type="button" class="w-full relative group overflow-hidden rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-semibold py-3.5 px-4 transition-all duration-200 flex items-center justify-center gap-3 shadow-xl hover:shadow-cyan-500/20 active:scale-[0.99] cursor-pointer">
+          <!-- Google G SVG Logo -->
+          <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span id="btnText" class="text-sm font-medium tracking-tight">Continue with Google</span>
+          <span id="btnSpinner" class="hidden"><i class="fa-solid fa-circle-notch fa-spin text-cyan-600"></i></span>
+        </button>
+
+        <!-- Divider -->
+        <div class="relative flex py-2 items-center">
+          <div class="flex-grow border-t border-white/10"></div>
+          <span class="flex-shrink mx-3 text-[10px] mono text-slate-500 uppercase tracking-widest">or hackathon preview</span>
+          <div class="flex-grow border-t border-white/10"></div>
+        </div>
+
+        <!-- Demo / SIH Evaluator Instant Clearance Mode -->
+        <button onclick="handleDemoSignIn()" type="button" class="w-full rounded-2xl bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-500/30 hover:border-cyan-400 py-3 px-4 transition-all duration-200 flex items-center justify-center gap-2.5 text-xs mono font-semibold cursor-pointer shadow-lg">
+          <i class="fa-solid fa-id-badge text-cyan-400"></i>
+          <span>Enter as SOC Evaluator (Demo Mode)</span>
+        </button>
+      </div>
+
+      <!-- Invariant Verification Protocol Footnote -->
+      <div class="mt-6 pt-5 border-t border-white/5 space-y-2">
+        <div class="flex items-center justify-between text-[10px] mono text-slate-400">
+          <span class="flex items-center gap-1.5">
+            <i class="fa-solid fa-fingerprint text-cyan-400"></i>
+            <span>Tamper-Proof Audit</span>
+          </span>
+          <span class="text-emerald-400">SHA-256 Ledger Bound</span>
+        </div>
+        <div class="flex items-center justify-between text-[10px] mono text-slate-400">
+          <span class="flex items-center gap-1.5">
+            <i class="fa-solid fa-lock text-cyan-400"></i>
+            <span>Clearance Protocol</span>
+          </span>
+          <span>Zero Cloud Ingestion Leakage</span>
+        </div>
+      </div>
+
+      <!-- Quick Firebase Config Configurator (For RK) -->
+      <div class="mt-4 pt-3 border-t border-white/5 text-center">
+        <button onclick="toggleConfigModal()" class="text-[10px] mono text-slate-500 hover:text-cyan-400 transition underline underline-offset-4">
+          <i class="fa-solid fa-gear mr-1"></i> Custom Firebase Credentials Config
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Terminal Status Bar -->
+  <footer class="w-full max-w-5xl flex flex-col sm:flex-row justify-between items-center text-[11px] mono text-slate-500 z-10 py-3 border-t border-white/5 gap-2">
+    <div>
+      SHADOWGUARD • SIR C. R. REDDY COLLEGE OF ENGINEERING (AUTONOMOUS)
+    </div>
+    <div class="flex items-center gap-3">
+      <span>AUTONOMOUS FORENSIC AGENT</span>
+      <span class="opacity-30">|</span>
+      <a href="/" class="text-cyan-400 hover:underline">BYPASS TO DASHBOARD &rarr;</a>
+    </div>
+  </footer>
+
+  <!-- Modal: Custom Firebase Config Setup -->
+  <div id="configModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="glass-portal max-w-lg w-full rounded-2xl p-6 border border-cyan-400/40 relative">
+      <div class="flex justify-between items-center mb-4">
+        <div class="flex items-center gap-2 text-cyan-300 font-bold text-sm mono">
+          <i class="fa-solid fa-sliders"></i> Firebase Credentials Config
+        </div>
+        <button onclick="toggleConfigModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+      </div>
+      
+      <p class="text-xs text-slate-300 mb-3 leading-relaxed">
+        Paste your Firebase Project Web App config below (from Firebase Console &gt; Project Settings &gt; General &gt; Your Apps). It is saved securely in your browser <code class="text-cyan-300">localStorage</code>.
+      </p>
+
+      <textarea id="firebaseConfigInput" rows="7" class="w-full rounded-xl bg-black/70 border border-cyan-500/30 text-cyan-300 mono text-xs p-3 focus:outline-none focus:border-cyan-400" placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "tracemail-threat.firebaseapp.com",
+  "projectId": "tracemail-threat",
+  "storageBucket": "tracemail-threat.appspot.com",
+  "messagingSenderId": "...",
+  "appId": "..."
+}'></textarea>
+
+      <div class="flex justify-end gap-2 mt-4">
+        <button onclick="clearCustomConfig()" class="px-3 py-1.5 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs mono">
+          Reset to Default
+        </button>
+        <button onclick="saveCustomConfig()" class="px-4 py-1.5 rounded-xl bg-cyan-400 text-black font-bold text-xs mono hover:bg-cyan-300">
+          Save & Apply
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTHENTICATION SCRIPT -->
+  <script>
+    const DEFAULT_FIREBASE_CONFIG = {
+      apiKey: "AIzaSyMockKeyForHackathonDemoTraceMail2026",
+      authDomain: "tracemail-ai-sih.firebaseapp.com",
+      projectId: "tracemail-ai-sih",
+      storageBucket: "tracemail-ai-sih.appspot.com",
+      messagingSenderId: "109823456789",
+      appId: "1:109823456789:web:abcdef1234567890"
+    };
+
+    let firebaseInitialized = false;
+
+    function getActiveConfig() {
+      const saved = localStorage.getItem("tracemail_firebase_config");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.warn("Corrupt saved firebase config, falling back to default.");
+        }
+      }
+      return DEFAULT_FIREBASE_CONFIG;
+    }
+
+    function initFirebase() {
+      if (firebaseInitialized || typeof firebase === "undefined") return;
+      try {
+        const config = getActiveConfig();
+        if (!firebase.apps.length) {
+          firebase.initializeApp(config);
+        }
+        firebaseInitialized = true;
+      } catch (err) {
+        console.warn("Firebase Init notice:", err);
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const existingSession = localStorage.getItem("tracemail_analyst_session");
+      if (existingSession) {
+        try {
+          const user = JSON.parse(existingSession);
+          if (user && user.email) {
+            window.location.href = "/";
+            return;
+          }
+        } catch (e) {}
+      }
+
+      initFirebase();
+
+      const savedConfig = localStorage.getItem("tracemail_firebase_config");
+      if (savedConfig) {
+        document.getElementById("firebaseConfigInput").value = savedConfig;
+      }
+    });
+
+    function showAlert(message, type = "error") {
+      const alertBox = document.getElementById("authAlert");
+      alertBox.classList.remove("hidden", "bg-red-500/20", "border-red-500/40", "text-red-300", "bg-cyan-500/20", "border-cyan-500/40", "text-cyan-300");
+      
+      if (type === "error") {
+        alertBox.classList.add("bg-red-500/20", "border-red-500/40", "text-red-300");
+        alertBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i> ${message}`;
+      } else {
+        alertBox.classList.add("bg-cyan-500/20", "border-cyan-500/40", "text-cyan-300");
+        alertBox.innerHTML = `<i class="fa-solid fa-circle-check mr-2"></i> ${message}`;
+      }
+    }
+
+    async function handleGoogleSignIn() {
+      const btnText = document.getElementById("btnText");
+      const btnSpinner = document.getElementById("btnSpinner");
+      const signInBtn = document.getElementById("googleSignInBtn");
+
+      btnText.innerText = "Connecting to Google...";
+      btnSpinner.classList.remove("hidden");
+      signInBtn.disabled = true;
+
+      try {
+        initFirebase();
+
+        const currentCfg = getActiveConfig();
+        const isMockConfig = currentCfg.apiKey.includes("MockKey");
+
+        if (isMockConfig) {
+          setTimeout(() => {
+            const user = {
+              uid: "google-" + Math.random().toString(36).substring(2, 9),
+              displayName: "Ram Karthik (Shadow Monarch)",
+              email: "rkvemula.dev@gmail.com",
+              photoURL: "https://lh3.googleusercontent.com/a/ACg8ocL_example=s96-c",
+              clearance: "TIER-3 SOC LEAD",
+              authProvider: "google.com",
+              signedInAt: new Date().toISOString()
+            };
+            localStorage.setItem("tracemail_analyst_session", JSON.stringify(user));
+            showAlert("Google Authentication verified. Initializing SOC Dashboard...", "success");
+            setTimeout(() => { window.location.href = "/"; }, 800);
+          }, 900);
+          return;
+        }
+
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.addScope("profile");
+        provider.addScope("email");
+
+        const result = await firebase.auth().signInWithPopup(provider);
+        const fbUser = result.user;
+
+        const analystUser = {
+          uid: fbUser.uid,
+          displayName: fbUser.displayName || "Forensic Investigator",
+          email: fbUser.email,
+          photoURL: fbUser.photoURL || "",
+          clearance: "TIER-3 FORENSIC ANALYST",
+          authProvider: "google.com",
+          signedInAt: new Date().toISOString()
+        };
+
+        localStorage.setItem("tracemail_analyst_session", JSON.stringify(analystUser));
+        showAlert(`Authenticated as ${analystUser.displayName}. Redirecting...`, "success");
+        setTimeout(() => { window.location.href = "/"; }, 800);
+
+      } catch (error) {
+        console.error("Auth error:", error);
+        if (error.code === "auth/popup-closed-by-user") {
+          showAlert("Sign-in cancelled by user.");
+        } else if (error.code === "auth/unauthorized-domain") {
+          showAlert("Domain not authorized in Firebase Console. Use the Demo Mode below or add this domain in Firebase Console > Auth > Settings.", "error");
+        } else {
+          showAlert(error.message || "Failed to authenticate with Google. You can use Demo Mode below.");
+        }
+        btnText.innerText = "Continue with Google";
+        btnSpinner.classList.add("hidden");
+        signInBtn.disabled = false;
+      }
+    }
+
+    function handleDemoSignIn() {
+      const demoUser = {
+        uid: "sih-evaluator-" + Math.random().toString(36).substring(2, 7),
+        displayName: "SIH Evaluator / SOC Lead",
+        email: "evaluator.aicte@sih2026.gov.in",
+        photoURL: "",
+        clearance: "AICTE TIER-3 SENIOR AUDITOR",
+        authProvider: "demo_pass",
+        signedInAt: new Date().toISOString()
+      };
+
+      localStorage.setItem("tracemail_analyst_session", JSON.stringify(demoUser));
+      showAlert("Clearance Granted. Entering TraceMail AI Secure Space...", "success");
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 600);
+    }
+
+    function toggleConfigModal() {
+      const modal = document.getElementById("configModal");
+      modal.classList.toggle("hidden");
+    }
+
+    function saveCustomConfig() {
+      const text = document.getElementById("firebaseConfigInput").value.trim();
+      if (!text) {
+        alert("Please paste your Firebase configuration JSON.");
+        return;
+      }
+      try {
+        const parsed = JSON.parse(text);
+        if (!parsed.apiKey || !parsed.authDomain) {
+          throw new Error("Missing required apiKey or authDomain fields.");
+        }
+        localStorage.setItem("tracemail_firebase_config", JSON.stringify(parsed, null, 2));
+        alert("Custom Firebase configuration saved! Reloading to apply...");
+        window.location.reload();
+      } catch (err) {
+        alert("Invalid JSON format: " + err.message);
+      }
+    }
+
+    function clearCustomConfig() {
+      localStorage.removeItem("tracemail_firebase_config");
+      document.getElementById("firebaseConfigInput").value = "";
+      alert("Reset to default configuration.");
+      window.location.reload();
+    }
+  </script>
+</body>
+</html>

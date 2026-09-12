@@ -315,9 +315,25 @@ def build_ui_compatible_payload(report: Dict[str, Any]) -> Dict[str, Any]:
         "ml_analysis": report.get("ml_analysis", {}),
         "ioc_graph": report.get("ioc_graph", {}),
         "body_summary": body_summary,
+        "analyst": report.get("input_metadata", {}),
         "evidence_hash": report.get("forensic_hash"),
         "timestamp": report.get("parsed_at_utc") or datetime.now(timezone.utc).isoformat()
     }
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def serve_login():
+    """Serves the investigator authentication and clearance gate."""
+    login_path = os.path.join(TEMPLATES_DIR, "login.html")
+    if os.path.exists(login_path):
+        with open(login_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            return HTMLResponse(content=content, headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            })
+    return "<h1>TRACE-MAIL AI Login Portal Initializing...</h1>"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -410,10 +426,16 @@ async def scan(
         report = await run_in_threadpool(ForensicPipeline.process_raw_email, content)
         analysis_id = f"ANL-{uuid.uuid4().hex[:12].upper()}"
         report["analysis_id"] = analysis_id
+        analyst_name = request.headers.get("X-Analyst-Identity", "Anonymous SOC Analyst")
+        analyst_email = request.headers.get("X-Analyst-Email", "soc@tracemail.ai")
+        analyst_clearance = request.headers.get("X-Analyst-Clearance", "TIER-3")
         report["input_metadata"] = {
             "filename": filename,
             "size_bytes": len(content),
             "is_demo_sample": filename in set(os.listdir(SAMPLES_DIR)) if os.path.exists(SAMPLES_DIR) else False,
+            "analyst_identity": analyst_name,
+            "analyst_email": analyst_email,
+            "analyst_clearance": analyst_clearance,
         }
         report["ledger_receipt"] = LEDGER.append(analysis_id, report["forensic_hash"])
         remember_analysis(report)

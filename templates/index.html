@@ -308,6 +308,46 @@
   <div class="grain"></div>
   <canvas id="fluid"></canvas>
 
+  <!-- CLEARANCE GATE MODAL (HIGH-TECH OVERLAY IF UNAUTHENTICATED) -->
+  <div id="clearanceModal" class="fixed inset-0 z-[100] bg-black/85 backdrop-blur-xl hidden flex items-center justify-center p-4">
+    <div class="glass rounded-3xl max-w-md w-full p-6 sm:p-8 border border-cyan-500/40 relative shadow-2xl shadow-cyan-500/10 text-center overflow-hidden">
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent"></div>
+      
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 text-[10px] mono tracking-widest uppercase mb-3">
+        <i class="fa-solid fa-shield-halved text-cyan-400"></i>
+        <span>AICTE CYBER SECURITY CELL • CLEARANCE GATE</span>
+      </div>
+
+      <h2 class="text-2xl font-bold text-white tracking-tight mb-2">
+        Restricted <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-sky-300">Forensic Access</span>
+      </h2>
+      <p class="text-xs text-slate-400 mb-6 leading-relaxed">
+        Authenticate with your Google Account to unlock live RFC 5322 Invariant telemetry, 3D God's Eye Planetary Radar, and tamper-evident cryptographic evidence logging.
+      </p>
+
+      <div class="space-y-3">
+        <a href="/login" class="w-full relative group overflow-hidden rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-semibold py-3 px-4 transition-all duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-cyan-500/20 active:scale-[0.99] cursor-pointer block text-center">
+          <svg class="w-4 h-4 inline-block" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span class="text-xs font-semibold">Sign In with Google</span>
+        </a>
+
+        <button onclick="quickDemoAccess()" type="button" class="w-full rounded-2xl bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-500/30 hover:border-cyan-400 py-2.5 px-4 transition flex items-center justify-center gap-2 text-xs mono font-semibold cursor-pointer">
+          <i class="fa-solid fa-id-badge text-cyan-400"></i>
+          <span>Continue as SOC Evaluator (Demo Mode)</span>
+        </button>
+
+        <button onclick="closeClearanceGate()" type="button" class="text-[11px] mono text-slate-400 hover:text-white transition underline underline-offset-4 pt-1">
+          Continue as Guest Observer (Read-Only Preview)
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- NAV -->
   <nav class="fixed top-0 w-full z-50 glass border-b border-white/5">
     <div class="max-w-7xl mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
@@ -326,7 +366,32 @@
           <i class="fa-solid fa-cloud-arrow-up"></i>
           <span>Upload .eml</span>
         </button>
-        <a href="#scan" class="magnet glass px-5 py-2 rounded-full text-xs tracking-widest hover:bg-white hover:text-black transition">DASHBOARD ● LIVE</a>
+
+        <!-- Authenticated Analyst Identity Badge -->
+        <div id="analystNavBadge" class="hidden flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-full glass border border-cyan-500/30 text-xs mono">
+          <div class="w-6 h-6 rounded-full bg-cyan-500/30 border border-cyan-400 flex items-center justify-center text-cyan-300 overflow-hidden" id="navAvatarContainer">
+            <i class="fa-solid fa-user-shield text-[10px]" id="navAvatarIcon"></i>
+            <img id="navAvatarImg" class="w-full h-full object-cover hidden" alt="Avatar">
+          </div>
+          <div class="hidden sm:flex flex-col text-left leading-tight">
+            <span id="navAnalystName" class="text-white font-bold text-[11px] truncate max-w-[120px]">Analyst</span>
+            <span id="navAnalystClearance" class="text-cyan-400 text-[9px]">SOC TIER-3</span>
+          </div>
+          <button type="button" onclick="signOutAnalyst()" title="Sign Out Analyst" class="ml-1 text-slate-400 hover:text-rose-400 p-1 rounded-full hover:bg-white/5 transition cursor-pointer">
+            <i class="fa-solid fa-right-from-bracket text-xs"></i>
+          </button>
+        </div>
+
+        <!-- Unauthenticated Sign In Button -->
+        <a id="navLoginBtn" href="/login" class="magnet px-3.5 py-1.5 rounded-full text-xs font-mono font-bold bg-white text-black hover:bg-cyan-300 transition flex items-center gap-1.5 shadow-md shadow-cyan-500/20 cursor-pointer">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span>Sign In</span>
+        </a>
       </div>
     </div>
   </nav>
@@ -956,6 +1021,87 @@
     let lastThreatOrigin = null;
     let globeAutoRotate = true;
 
+    // =========================================================================
+    // INVESTIGATOR CLEARANCE & AUTHENTICATION MANAGER (GOOGLE / FIREBASE)
+    // =========================================================================
+    function getActiveAnalyst() {
+      try {
+        const raw = localStorage.getItem('tracemail_analyst_session');
+        if (raw) return JSON.parse(raw);
+      } catch (e) {
+        console.warn('Error reading analyst session:', e);
+      }
+      return null;
+    }
+
+    function syncAnalystAuthState() {
+      const analyst = getActiveAnalyst();
+      const badge = document.getElementById('analystNavBadge');
+      const loginBtn = document.getElementById('navLoginBtn');
+      const nameEl = document.getElementById('navAnalystName');
+      const clearanceEl = document.getElementById('navAnalystClearance');
+      const avatarImg = document.getElementById('navAvatarImg');
+      const avatarIcon = document.getElementById('navAvatarIcon');
+      const modal = document.getElementById('clearanceModal');
+
+      if (analyst && analyst.email) {
+        if (badge) badge.classList.remove('hidden');
+        if (loginBtn) loginBtn.classList.add('hidden');
+        if (nameEl) nameEl.textContent = analyst.displayName || 'Forensic Lead';
+        if (clearanceEl) clearanceEl.textContent = analyst.clearance ? analyst.clearance.replace('TIER-', 'L') : 'SOC L3';
+        
+        if (analyst.photoURL && avatarImg && avatarIcon) {
+          avatarImg.src = analyst.photoURL;
+          avatarImg.classList.remove('hidden');
+          avatarIcon.classList.add('hidden');
+        } else if (avatarImg && avatarIcon) {
+          avatarImg.classList.add('hidden');
+          avatarIcon.classList.remove('hidden');
+        }
+
+        if (modal) modal.classList.add('hidden');
+      } else {
+        if (badge) badge.classList.add('hidden');
+        if (loginBtn) loginBtn.classList.remove('hidden');
+        
+        const dismissed = sessionStorage.getItem('tracemail_guest_dismissed');
+        if (!dismissed && modal) {
+          modal.classList.remove('hidden');
+        }
+      }
+    }
+
+    function quickDemoAccess() {
+      const demoUser = {
+        uid: 'sih-evaluator-' + Math.random().toString(36).substring(2, 7),
+        displayName: 'SIH Evaluator / SOC Lead',
+        email: 'evaluator.aicte@sih2026.gov.in',
+        photoURL: '',
+        clearance: 'AICTE TIER-3 SENIOR AUDITOR',
+        authProvider: 'demo_pass',
+        signedInAt: new Date().toISOString()
+      };
+      localStorage.setItem('tracemail_analyst_session', JSON.stringify(demoUser));
+      const modal = document.getElementById('clearanceModal');
+      if (modal) modal.classList.add('hidden');
+      syncAnalystAuthState();
+    }
+
+    function closeClearanceGate() {
+      sessionStorage.setItem('tracemail_guest_dismissed', 'true');
+      const modal = document.getElementById('clearanceModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function signOutAnalyst() {
+      localStorage.removeItem('tracemail_analyst_session');
+      sessionStorage.removeItem('tracemail_guest_dismissed');
+      window.location.href = '/login';
+    }
+
+    // Initialize auth state immediately
+    syncAnalystAuthState();
+
     // Secure HTML Sanitizer (XSS Prevention)
     function escHtml(str) {
       if (str === null || str === undefined) return '';
@@ -1448,7 +1594,15 @@
           fd.append('email_body', bodyText);
         }
 
-        const r = await fetch('/scan', { method: 'POST', body: fd });
+        const activeAnalyst = getActiveAnalyst();
+        const scanHeaders = {};
+        if (activeAnalyst) {
+          scanHeaders['X-Analyst-Identity'] = activeAnalyst.displayName || 'Forensic Investigator';
+          scanHeaders['X-Analyst-Email'] = activeAnalyst.email || 'investigator@tracemail.ai';
+          scanHeaders['X-Analyst-Clearance'] = activeAnalyst.clearance || 'TIER-3';
+        }
+
+        const r = await fetch('/scan', { method: 'POST', body: fd, headers: scanHeaders });
         const j = await r.json();
         if (!r.ok) {
           throw new Error(j.detail || 'Forensic scan failed (' + r.status + ')');
