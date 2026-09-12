@@ -1662,10 +1662,10 @@
 
       try {
         const fd = formEl ? new FormData(formEl) : new FormData();
-        if (fileInputEl && fileInputEl.files && fileInputEl.files.length > 0) {
+        const hasAttachedFile = Boolean(fileInputEl && fileInputEl.files && fileInputEl.files.length > 0);
+        if (hasAttachedFile) {
           fd.set('eml', fileInputEl.files[0]);
-        }
-        if (bodyText) {
+        } else if (bodyText) {
           fd.set('email_body', bodyText);
         }
 
@@ -1835,7 +1835,11 @@
       const vHead = document.getElementById('verdictHeadline');
       if (vHead) vHead.innerText = headline;
       const vSum = document.getElementById('verdictSummary');
-      if (vSum) vSum.innerText = summary;
+      if (vSum) {
+        vSum.innerText = j.is_pdf_export
+          ? (summary + ' (📱 Analyzed from mobile PDF snapshot: transit hops & DKIM stripped by mobile email client; sender physical origin geolocated via domain infrastructure authority).')
+          : summary;
+      }
       const vIcon = document.getElementById('verdictIconBox');
       if (vIcon) {
         vIcon.innerHTML = iconHtml;
@@ -2359,6 +2363,16 @@
       if (scanBtn) {
         scanBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i><span>ANALYZING: ${file.name.slice(0, 24)}</span>`;
         scanBtn.classList.add('animate-pulse');
+      }
+
+      const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+      if (isPdf) {
+        const emailBody = document.getElementById('emailBody');
+        if (emailBody) {
+          emailBody.value = `[Attached Mobile PDF: ${file.name} (${(file.size / 1024).toFixed(1)} KB)]\nExtracting document text, sender identity, and geolocating origin domain infrastructure...`;
+        }
+        triggerTextFileSlide3D(file.name, file.size, 1);
+        return;
       }
 
       const reader = new FileReader();

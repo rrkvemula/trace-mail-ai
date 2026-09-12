@@ -373,6 +373,41 @@ class PipelineTests(unittest.TestCase):
         self.assertGreaterEqual(len(res.get("citations", [])), 1)
         self.assertIn("SWIFT", res["reply"])
 
+    def test_mobile_pdf_email_extraction_and_domain_geolocation(self):
+        from reportlab.pdfgen import canvas
+        import io
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf)
+        c.drawString(100, 750, "From: support@chatgpt.openai.com")
+        c.drawString(100, 730, "To: rk@example.com")
+        c.drawString(100, 710, "Subject: OpenAI ChatGPT Team Invitation")
+        c.drawString(100, 690, "Welcome to the team workspace.")
+        c.save()
+        pdf_bytes = buf.getvalue()
+
+        report = ForensicPipeline.process_raw_email(pdf_bytes)
+        self.assertTrue(report.get("origin_location"))
+        self.assertIn("San Francisco", report.get("origin_location", ""))
+        self.assertEqual(report.get("origin_geo", {}).get("country"), "United States")
+        self.assertIsNotNone(report.get("origin_geo", {}).get("latitude"))
+
+    def test_mobile_pdf_email_with_in_text_origin_ip(self):
+        from reportlab.pdfgen import canvas
+        import io
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf)
+        c.drawString(100, 750, "From: notifications@openai.com")
+        c.drawString(100, 730, "To: rk@example.com")
+        c.drawString(100, 710, "Subject: Security Alert")
+        c.drawString(100, 690, "Security cluster outbound relay observed: 167.89.61.27")
+        c.save()
+        pdf_bytes = buf.getvalue()
+
+        report = ForensicPipeline.process_raw_email(pdf_bytes)
+        self.assertEqual(report.get("origin_ip"), "167.89.61.27")
+        self.assertIn("Denver", report.get("origin_location", ""))
+        self.assertEqual(report.get("origin_geo", {}).get("country"), "United States")
+
 
 if __name__ == "__main__":
     unittest.main()

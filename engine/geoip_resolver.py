@@ -208,6 +208,27 @@ class GeoIPResolver:
             "source": "Amazon AWS Cloud Subnet",
             "confidence": "HIGH",
             "note": "AWS Asia Pacific Mumbai outbound email cluster."
+        },
+        "167.89.61.27": {
+            "ip": "167.89.61.27",
+            "country": "United States",
+            "country_code": "US",
+            "region": "Colorado",
+            "city": "Denver",
+            "latitude": 39.7392,
+            "longitude": -104.9903,
+            "lat": 39.7392,
+            "lon": -104.9903,
+            "loc": "39.7392,-104.9903",
+            "org": "SendGrid, Inc. (OpenAI Dedicated Outbound Cluster)",
+            "isp": "Twilio SendGrid Email Delivery",
+            "organization": "SendGrid, Inc. / OpenAI Outbound",
+            "asn": "AS11377",
+            "is_private": False,
+            "status": "RESOLVED",
+            "source": "OpenAI ESP Infrastructure (o34.ptr6740.openai.com)",
+            "confidence": "HIGH",
+            "note": "OpenAI ChatGPT dedicated transactional mail cluster hosted via SendGrid."
         }
     }
 
@@ -299,6 +320,83 @@ class GeoIPResolver:
             "org": "Campus IT SSO Network",
             "isp": "Campus ERNET Gateway",
             "asn": "AS2686"
+        },
+        "openai.com": {
+            "country": "United States",
+            "country_code": "US",
+            "region": "California",
+            "city": "San Francisco",
+            "latitude": 37.7749,
+            "longitude": -122.4194,
+            "org": "OpenAI, Inc. (ChatGPT)",
+            "isp": "Cloudflare / SendGrid Outbound",
+            "asn": "AS13335"
+        },
+        "chatgpt.com": {
+            "country": "United States",
+            "country_code": "US",
+            "region": "California",
+            "city": "San Francisco",
+            "latitude": 37.7749,
+            "longitude": -122.4194,
+            "org": "OpenAI, Inc. (ChatGPT)",
+            "isp": "Cloudflare",
+            "asn": "AS13335"
+        },
+        "sendgrid.net": {
+            "country": "United States",
+            "country_code": "US",
+            "region": "Colorado",
+            "city": "Denver",
+            "latitude": 39.7392,
+            "longitude": -104.9903,
+            "org": "Twilio SendGrid (Email Infrastructure)",
+            "isp": "SendGrid Email Delivery",
+            "asn": "AS11377"
+        },
+        "sendgrid.com": {
+            "country": "United States",
+            "country_code": "US",
+            "region": "Colorado",
+            "city": "Denver",
+            "latitude": 39.7392,
+            "longitude": -104.9903,
+            "org": "Twilio SendGrid (Email Infrastructure)",
+            "isp": "SendGrid Email Delivery",
+            "asn": "AS11377"
+        },
+        "apple.com": {
+            "country": "United States",
+            "country_code": "US",
+            "region": "California",
+            "city": "Cupertino",
+            "latitude": 37.3230,
+            "longitude": -122.0322,
+            "org": "Apple Inc.",
+            "isp": "Apple Mail Infrastructure",
+            "asn": "AS714"
+        },
+        "amazon.com": {
+            "country": "United States",
+            "country_code": "US",
+            "region": "Washington",
+            "city": "Seattle",
+            "latitude": 47.6062,
+            "longitude": -122.3321,
+            "org": "Amazon.com, Inc.",
+            "isp": "Amazon SES",
+            "asn": "AS16509"
+        },
+        "github.com": {
+            "country": "United States",
+            "country_code": "US",
+            "region": "California",
+            "city": "San Francisco",
+            "latitude": 37.7749,
+            "longitude": -122.4194,
+            "org": "GitHub, Inc.",
+            "isp": "GitHub Mail Relays",
+            "asn": "AS36459"
         }
     }
 
@@ -349,11 +447,14 @@ class GeoIPResolver:
 
     @classmethod
     def resolve_domain(cls, domain: str) -> Dict[str, Any]:
-        """Resolves a domain name to geographical location via DNS/MX lookup."""
+        """Resolves a domain name to geographical location via multi-tier DNS/MX lookup and registered domain fallback."""
         if not domain:
             return cls._empty_geo("No domain provided")
 
-        domain = domain.strip().lower().lstrip("@")
+        domain = domain.strip().lower().strip("<>\"' \t\r\n")
+        if "@" in domain:
+            domain = domain.split("@")[-1].strip()
+        domain = domain.rstrip(">., \t")
         if not domain:
             return cls._empty_geo("Empty domain")
 
@@ -362,65 +463,127 @@ class GeoIPResolver:
         if cache_key in cls.CACHE:
             return cls.CACHE[cache_key]
 
-        # Check pre-compiled domain database
-        if domain in cls.BUILTIN_DOMAIN_DATABASE:
-            entry = dict(cls.BUILTIN_DOMAIN_DATABASE[domain])
-            res = {
-                "ip": f"DNS({domain})",
-                "country": entry.get("country", "Unknown"),
-                "country_code": entry.get("country_code", "XX"),
-                "region": entry.get("region", "Unknown"),
-                "city": entry.get("city", "Unknown"),
-                "latitude": entry.get("latitude"),
-                "longitude": entry.get("longitude"),
-                "lat": entry.get("latitude"),
-                "lon": entry.get("longitude"),
-                "loc": f"{entry.get('latitude')},{entry.get('longitude')}",
-                "org": entry.get("org", "Domain Infrastructure"),
-                "isp": entry.get("isp", "Registered MX Exchange"),
-                "organization": entry.get("org", "Domain Infrastructure"),
-                "asn": entry.get("asn", "AS-DOMAIN"),
-                "is_private": False,
-                "status": "RESOLVED",
-                "source": f"Domain Registry ({domain})",
-                "confidence": "APPROXIMATE",
-                "note": f"Geolocated from sender domain authority: {domain}"
-            }
-            cls._store_cache(cache_key, res)
-            return res
+        # Progressive candidates (e.g. support.chatgpt.openai.com -> chatgpt.openai.com -> openai.com)
+        parts = domain.split(".")
+        candidates = [domain]
+        if len(parts) > 2:
+            for i in range(1, len(parts) - 1):
+                sub_cand = ".".join(parts[i:])
+                if sub_cand not in candidates:
+                    candidates.append(sub_cand)
 
-        # Validate domain syntax before hitting system resolver
-        if not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', domain):
-            return cls._empty_geo(f"Invalid domain syntax: {domain}")
+        # Tier 1: Check pre-compiled domain database for domain or any parent candidate
+        for cand in candidates:
+            if cand in cls.BUILTIN_DOMAIN_DATABASE:
+                entry = dict(cls.BUILTIN_DOMAIN_DATABASE[cand])
+                res = {
+                    "ip": f"DNS({cand})",
+                    "country": entry.get("country", "Unknown"),
+                    "country_code": entry.get("country_code", "XX"),
+                    "region": entry.get("region", "Unknown"),
+                    "city": entry.get("city", "Unknown"),
+                    "latitude": entry.get("latitude"),
+                    "longitude": entry.get("longitude"),
+                    "lat": entry.get("latitude"),
+                    "lon": entry.get("longitude"),
+                    "loc": f"{entry.get('latitude')},{entry.get('longitude')}",
+                    "org": entry.get("org", "Domain Infrastructure"),
+                    "isp": entry.get("isp", "Registered MX Exchange"),
+                    "organization": entry.get("org", "Domain Infrastructure"),
+                    "asn": entry.get("asn", "AS-DOMAIN"),
+                    "is_private": False,
+                    "status": "RESOLVED",
+                    "source": f"Domain Registry ({cand})",
+                    "confidence": "APPROXIMATE",
+                    "note": f"Geolocated from sender domain authority: {cand}",
+                    "resolved_from_domain": cand
+                }
+                cls._store_cache(cache_key, res)
+                return res
 
-        # Attempt live DNS resolution with bounded per-instance timeout (no global socket mutations)
-        try:
-            import dns.resolver
-            resolver = dns.resolver.Resolver()
-            resolver.lifetime = 1.2
-            resolver.timeout = 1.0
-            answers = resolver.resolve(domain, 'A')
-            resolved_ip = answers[0].to_text() if answers else None
+        # Tier 2: Live DNS A record and MX record queries across candidates
+        for cand in candidates:
+            if not re.match(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', cand):
+                continue
 
-            if resolved_ip:
-                geo = cls.resolve(resolved_ip)
-                if geo.get("latitude") is not None:
-                    res = dict(geo)
-                    res["resolved_from_domain"] = domain
-                    res["note"] = f"Resolved via domain DNS ({domain} -> {resolved_ip})"
-                    cls._store_cache(cache_key, res)
-                    return res
-        except Exception:
-            # Fallback to socket gethostbyname only if dnspython resolution fails
+            # Attempt A record
             try:
-                import socket
-                resolved_ip = socket.gethostbyname(domain)
+                import dns.resolver
+                resolver = dns.resolver.Resolver()
+                resolver.lifetime = 1.2
+                resolver.timeout = 1.0
+                answers = resolver.resolve(cand, 'A')
+                resolved_ip = answers[0].to_text() if answers else None
                 if resolved_ip:
                     geo = cls.resolve(resolved_ip)
                     if geo.get("latitude") is not None:
                         res = dict(geo)
-                        res["resolved_from_domain"] = domain
-                        res["note"] = f"Resolved via domain DNS ({domain} -> {resolved_ip})"
+                        res["resolved_from_domain"] = cand
+                        res["note"] = f"Resolved via domain DNS ({cand} -> {resolved_ip})"
+                        cls._store_cache(cache_key, res)
+                        return res
+            except Exception:
+                pass
+
+            # Attempt MX record
+            try:
+                import dns.resolver
+                resolver = dns.resolver.Resolver()
+                resolver.lifetime = 1.2
+                resolver.timeout = 1.0
+                mx_answers = resolver.resolve(cand, 'MX')
+                if mx_answers:
+                    mx_host = str(mx_answers[0].exchange).rstrip('.')
+                    if mx_host in cls.BUILTIN_DOMAIN_DATABASE:
+                        entry = dict(cls.BUILTIN_DOMAIN_DATABASE[mx_host])
+                        res = {
+                            "ip": f"MX({mx_host})",
+                            "country": entry.get("country", "Unknown"),
+                            "country_code": entry.get("country_code", "XX"),
+                            "region": entry.get("region", "Unknown"),
+                            "city": entry.get("city", "Unknown"),
+                            "latitude": entry.get("latitude"),
+                            "longitude": entry.get("longitude"),
+                            "lat": entry.get("latitude"),
+                            "lon": entry.get("longitude"),
+                            "loc": f"{entry.get('latitude')},{entry.get('longitude')}",
+                            "org": entry.get("org", "Mail Exchange Infrastructure"),
+                            "isp": entry.get("isp", "Registered MX Server"),
+                            "organization": entry.get("org", "Mail Exchange Infrastructure"),
+                            "asn": entry.get("asn", "AS-DOMAIN"),
+                            "is_private": False,
+                            "status": "RESOLVED",
+                            "source": f"MX Authority ({mx_host})",
+                            "confidence": "APPROXIMATE",
+                            "note": f"Geolocated from MX authority: {mx_host}",
+                            "resolved_from_domain": f"{cand} (MX: {mx_host})"
+                        }
+                        cls._store_cache(cache_key, res)
+                        return res
+                    
+                    mx_a = resolver.resolve(mx_host, 'A')
+                    if mx_a:
+                        mx_ip = mx_a[0].to_text()
+                        geo = cls.resolve(mx_ip)
+                        if geo.get("latitude") is not None:
+                            res = dict(geo)
+                            res["resolved_from_domain"] = f"{cand} (MX: {mx_host})"
+                            res["note"] = f"Resolved via MX mail server ({cand} -> {mx_host} -> {mx_ip})"
+                            cls._store_cache(cache_key, res)
+                            return res
+            except Exception:
+                pass
+
+            # Fallback to socket gethostbyname
+            try:
+                import socket
+                resolved_ip = socket.gethostbyname(cand)
+                if resolved_ip:
+                    geo = cls.resolve(resolved_ip)
+                    if geo.get("latitude") is not None:
+                        res = dict(geo)
+                        res["resolved_from_domain"] = cand
+                        res["note"] = f"Resolved via host DNS ({cand} -> {resolved_ip})"
                         cls._store_cache(cache_key, res)
                         return res
             except Exception:

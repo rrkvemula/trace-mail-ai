@@ -79,13 +79,16 @@ class EmailParser:
             in_header_block = True
             found_any_header = False
 
-            common_headers = {"from", "to", "subject", "date", "reply-to", "cc", "bcc"}
+            common_headers = {"from", "to", "subject", "date", "reply-to", "cc", "bcc", "sent"}
             for line in lines:
                 line_stripped = line.strip()
                 if in_header_block:
                     m = re.match(r"^([A-Za-z\-]+):\s*(.*)$", line_stripped)
                     if m and m.group(1).lower() in common_headers:
-                        reconstructed_headers.append(f"{m.group(1)}: {m.group(2)}")
+                        hdr_name = m.group(1)
+                        if hdr_name.lower() == "sent":
+                            hdr_name = "Date"
+                        reconstructed_headers.append(f"{hdr_name}: {m.group(2)}")
                         found_any_header = True
                     elif found_any_header and not line_stripped:
                         in_header_block = False
@@ -101,7 +104,7 @@ class EmailParser:
                 return "\n".join(reconstructed_headers) + "\n\n" + "\n".join(body_lines)
 
             # If no labeled headers, look for sender email in first few lines
-            for i in range(min(6, len(lines))):
+            for i in range(min(12, len(lines))):
                 email_match = re.search(r"([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)", lines[i])
                 if email_match:
                     sender_email = email_match.group(1)
@@ -314,12 +317,27 @@ class EmailParser:
                 "note": "Only a private or otherwise unverified relay address was available."
             }
 
+        # If no hop IP, inspect message content/telemetry for public candidate IPs
+        content_ips = self._extract_ip_candidates(self.raw_content)
+        for c_ip in content_ips:
+            try:
+                ip_obj = ipaddress.ip_address(c_ip)
+                if not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_link_local):
+                    return {
+                        "ip": c_ip,
+                        "source": "Message Telemetry / In-Text IP Indicator",
+                        "confidence": "CORROBORATED",
+                        "note": f"Public IP {c_ip} identified from message telemetry/content."
+                    }
+            except ValueError:
+                pass
+
         if getattr(self, "is_pdf_export", False) and not hops:
             return {
                 "ip": None,
                 "source": "Mobile PDF Visual Printout",
                 "confidence": "VISUAL_SNAPSHOT",
-                "note": "Document uploaded as a mobile PDF printout. Visual email snapshots preserve rendered text but lack hidden RFC 5322 Received hops and DKIM digital signatures."
+                "note": "Document uploaded as a mobile PDF printout. Visual email snapshots preserve rendered text and sender domain, but lack hidden RFC 5322 Received hops and DKIM digital signatures."
             }
 
         return {

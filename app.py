@@ -339,7 +339,9 @@ def build_ui_compatible_payload(report: Dict[str, Any]) -> Dict[str, Any]:
 
     city_str = geo_payload.get("city") or ""
     country_str = geo_payload.get("country") or ""
-    if city_str and country_str and city_str != "Unavailable" and country_str != "Unavailable":
+    if report.get("origin_location") and report.get("origin_location") not in ("Unknown Location", "Internal / Unknown"):
+        sender_loc = report["origin_location"]
+    elif city_str and country_str and city_str != "Unavailable" and country_str != "Unavailable":
         sender_loc = f"{city_str}, {country_str}"
     elif city_str and city_str != "Unavailable":
         sender_loc = city_str
@@ -358,6 +360,7 @@ def build_ui_compatible_payload(report: Dict[str, Any]) -> Dict[str, Any]:
         "label": label,
         "confidence": int(threat.get("confidence_score", 85)),
         "enforcement_action": threat.get("enforcement_action", "ALLOW"),
+        "is_pdf_export": report.get("is_pdf_export", False),
         "origin_ip": resolved_origin_ip,
         "origin_geo": geo_payload,
         "origin_location": sender_loc,
@@ -667,7 +670,7 @@ async def copilot_chat(payload: ChatRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    host = os.environ.get("HOST", "127.0.0.1")
+    host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", 8899))
     print(f"🚀 Starting TRACE-MAIL AI Forensic Platform on http://{host}:{port}")
     uvicorn.run(app, host=host, port=port)

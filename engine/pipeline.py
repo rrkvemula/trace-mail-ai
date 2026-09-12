@@ -53,9 +53,64 @@ class ForensicPipeline:
         threat_results = threat_scorer.calculate()
         ioc_graph = IOCGraphBuilder.build(parsed_data, hop_results.get("analyzed_hops", []))
 
-        # 6. Resolve Origin IP Geolocation
+        # 6. Resolve Origin IP Geolocation & Physical Infrastructure
         origin_ip = parsed_data.get("origin_ip")
         origin_geo = GeoIPResolver.resolve(origin_ip)
+
+        # Fallback 1: Check intermediate hops if origin IP was unlocated
+        if not origin_ip or origin_geo.get("latitude") is None:
+            for h in hop_results.get("analyzed_hops", []):
+                h_ip = h.get("ip")
+                if h_ip:
+                    h_geo = GeoIPResolver.resolve(h_ip)
+                    if h_geo.get("latitude") is not None:
+                        origin_ip = h_ip
+                        origin_geo = h_geo
+                        break
+
+        # Fallback 2: Resolve sender domain authority (vital for mobile PDF exports and visual snapshots)
+        if not origin_ip or origin_geo.get("latitude") is None:
+            import re
+            from_hdr = str(parsed_data.get("headers", {}).get("from", ""))
+            sender_domain = None
+            m = re.search(r"@([a-zA-Z0-9.\-]+)", from_hdr)
+            if m:
+                sender_domain = m.group(1).rstrip(">., \t")
+            if not sender_domain:
+                m2 = re.search(r"@([a-zA-Z0-9.\-]+)", str(parsed_data.get("headers", {}).get("return_path", "")))
+                if m2:
+                    sender_domain = m2.group(1).rstrip(">., \t")
+
+            if sender_domain:
+                d_geo = GeoIPResolver.resolve_domain(sender_domain)
+                if d_geo.get("latitude") is not None:
+                    origin_ip = d_geo.get("ip")
+                    origin_geo = d_geo
+                    parsed_data["origin_evidence"] = {
+                        "ip": origin_ip,
+                        "domain": sender_domain,
+                        "source": f"Sender Domain Authority ({sender_domain})",
+                        "confidence": "APPROXIMATE",
+                        "note": d_geo.get("note", f"Geolocated from registered domain infrastructure: {sender_domain}")
+                    }
+
+        city_str = origin_geo.get("city") or ""
+        country_str = origin_geo.get("country") or ""
+        if city_str and country_str and city_str != "Unavailable" and country_str != "Unavailable":
+            origin_loc = f"{city_str}, {country_str}"
+        elif city_str and city_str != "Unavailable":
+            origin_loc = city_str
+        elif country_str and country_str != "Unavailable":
+            origin_loc = country_str
+        elif origin_geo.get("is_private") or origin_geo.get("status") == "INTERNAL_ENCLAVE":
+            origin_loc = "Internal Enterprise Enclave"
+        else:
+            origin_loc = origin_geo.get("note") or "Unknown Location"
+
+        if "headers" in parsed_data and isinstance(parsed_data["headers"], dict):
+            parsed_data["headers"]["origin_ip"] = origin_ip
+            parsed_data["headers"]["origin_location"] = origin_loc
+            parsed_data["headers"]["origin_geo"] = origin_geo
 
         # 7. Safe Static Link Analysis (Zero SSRF)
         from .url_scanner import URLScanner
@@ -67,6 +122,7 @@ class ForensicPipeline:
             "parsed_at_utc": parsed_data.get("parsed_at_utc"),
             "headers": parsed_data.get("headers"),
             "origin_ip": origin_ip,
+            "origin_location": origin_loc,
             "origin_evidence": parsed_data.get("origin_evidence"),
             "origin_geo": origin_geo,
             "hops_analysis": hop_results,
