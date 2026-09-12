@@ -125,9 +125,9 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com https://www.gstatic.com; "
-        "connect-src 'self' https: http://localhost:8899 http://127.0.0.1:8899; "
-        "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com;"
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com https://www.gstatic.com https://apis.google.com https://*.google.com; "
+        "connect-src 'self' https: http://localhost:8899 http://127.0.0.1:8899 wss:; "
+        "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://content.googleapis.com https://*.google.com;"
     )
     return response
 
