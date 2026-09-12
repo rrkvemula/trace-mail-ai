@@ -14,10 +14,9 @@ from typing import Dict, Any, Optional
 class GeoIPResolver:
     """Enriches IP addresses with geographic and network telemetry."""
 
-    # Air-gapped zero-egress security default
-    # External HTTP lookups are disabled by default to eliminate DoS, network egress tracking, and latency bottlenecks.
-    ENABLE_EXTERNAL_LOOKUPS: bool = os.environ.get("TRACEMAIL_ENABLE_EXTERNAL_GEOIP", "0").lower() in ("1", "true", "yes")
-    EXTERNAL_LOOKUP_TIMEOUT: float = 0.5
+    # Live GeoIP enrichment enabled by default with in-memory caching and bounded timeout
+    ENABLE_EXTERNAL_LOOKUPS: bool = os.environ.get("TRACEMAIL_ENABLE_EXTERNAL_GEOIP", "1").lower() in ("1", "true", "yes")
+    EXTERNAL_LOOKUP_TIMEOUT: float = 1.5
 
     # In-memory cache to prevent redundant lookups with LRU bounds
     CACHE: Dict[str, Dict[str, Any]] = {}
@@ -497,6 +496,40 @@ class GeoIPResolver:
                         "is_private": False,
                         "status": "RESOLVED",
                         "source": "ip-api.com",
+                        "confidence": "APPROXIMATE",
+                        "note": "GeoIP describes registered network infrastructure."
+                    }
+        except Exception:
+            pass
+
+        # Provider 3: freeipapi.com (tertiary fallback)
+        try:
+            url = f"https://freeipapi.com/api/json/{ip}"
+            req = urllib.request.Request(url, headers={"User-Agent": "TRACE-MAIL-AI/1.0"})
+            with urllib.request.urlopen(req, timeout=cls.EXTERNAL_LOOKUP_TIMEOUT) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                lat = data.get("latitude")
+                lon = data.get("longitude")
+                if lat is not None and lon is not None:
+                    loc = f"{lat},{lon}"
+                    return {
+                        "ip": ip,
+                        "country": data.get("countryName", "Unknown"),
+                        "country_code": data.get("countryCode", "XX"),
+                        "region": data.get("regionName", "Unknown"),
+                        "city": data.get("cityName", "Unknown"),
+                        "latitude": lat,
+                        "longitude": lon,
+                        "lat": lat,
+                        "lon": lon,
+                        "loc": loc,
+                        "org": "Public Network Infrastructure",
+                        "isp": "Public Internet Carrier",
+                        "organization": "Public Network Infrastructure",
+                        "asn": "Public AS",
+                        "is_private": False,
+                        "status": "RESOLVED",
+                        "source": "freeipapi.com",
                         "confidence": "APPROXIMATE",
                         "note": "GeoIP describes registered network infrastructure."
                     }

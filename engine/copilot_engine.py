@@ -231,7 +231,94 @@ class ForensicCopilot:
 
         # --- INTENT ROUTING ---
 
-        # 0. EXPLICIT RAG INTENT (MITRE, CISA/FBI, Detection Rules, Ledger Precedents)
+        # 0. GREETING & CONVERSATIONAL INTENTS (hi, hello, hey, who are you, help, etc.)
+        greeting_words = {"hi", "hello", "hey", "hola", "yo", "good morning", "good afternoon", "good evening", "argus", "sup", "greetings"}
+        words = set(re.findall(r'\b[a-zA-Z]+\b', q))
+        is_greeting = bool(words.intersection(greeting_words)) and (len(words) <= 4 or q.strip() in greeting_words)
+
+        if is_greeting:
+            analyst_name = "Analyst"
+            if history:
+                for h in history:
+                    if isinstance(h, dict) and h.get("analyst_name"):
+                        analyst_name = h.get("analyst_name")
+                        break
+            
+            status_desc = f"Currently analyzing email from `{from_hdr}` with threat score **{score}/100** ({risk})." if from_hdr != "N/A" else "Forensic sensors standing by for email ingestion."
+            
+            greeting_reply = [
+                "### 🛡️ [ARGUS-X FORENSIC COGNITION ONLINE]",
+                f"Greetings, **{analyst_name}**. All neural diagnostic telemetry is active.",
+                "",
+                f"**Current Operational Context:** {status_desc}",
+                "",
+                "I am ready to assist your investigation. Here is what you can ask me:",
+                "- 🎯 **Dissect Threat Invariants:** *'Explain this threat'* or *'Why is this flagged?'*",
+                "- 🛰️ **Inspect MTA Hops & GeoINT:** *'Where did this email physically originate?'*",
+                "- 🔑 **Analyze Authentication:** *'Explain SPF, DKIM and DMARC'*",
+                "- 📜 **Deploy Defense Rules:** *'Generate Snort and Sigma rules'*",
+                "- 🏢 **Audit WHOIS & Domain:** *'Inspect the domain and Reply-To'*",
+                "",
+                "*What specific vector would you like me to inspect?*"
+            ]
+            return "\n".join(greeting_reply), "GREETING"
+
+        # WHO ARE YOU / CAPABILITIES
+        if any(w in q for w in ["who are you", "what can you do", "help me", "how to use", "commands", "features", "what is this"]):
+            cap_reply = [
+                "### 🛰️ ARGUS-X Autonomous SOC Forensic Copilot",
+                "I am **ARGUS-X**, the dedicated forensic AI agent powering **TRACE-MAIL AI** for the Smart India Hackathon (PS ID: SIH26106).",
+                "",
+                "#### ⚡ Core Investigative Capabilities:",
+                "1. **RFC 5322 Invariant Auditing:** Detects header forgery, negative transit travel (ΔT < 0), and anomalous relay latency.",
+                "2. **Cryptographic Identity Verification:** Evaluates SPF, DKIM, and DMARC alignment against envelope Return-Path and Header From.",
+                "3. **GeoINT Planetary Tracing:** Maps boundary relay IP hops to physical coordinates and autonomous system numbers (ASNs).",
+                "4. **Linguistic & BEC Multi-Signal Analysis:** Isolates executive impersonation, wire fraud phrases, and SSRF token leakage.",
+                "5. **CISA & MITRE Defense Generation:** Auto-generates Snort 3, Sigma, and mail gateway filtering rules grounded in cyber playbooks.",
+                "",
+                "👉 *Ask me any question about the scanned email or email security in general!*"
+            ]
+            return "\n".join(cap_reply), "CAPABILITIES"
+
+        # SIMPLE / EXECUTIVE "IS THIS SAFE?" / "SHOULD I CLICK?"
+        if any(w in q for w in ["is this safe", "is it safe", "should i click", "can i open", "is this real", "is this legitimate", "is this scam", "what should i do"]):
+            if score >= 70:
+                safety_verdict = (
+                    "### 🚨 CRITICAL THREAT VERDICT: DO NOT CLICK OR INTERACT\n\n"
+                    f"**Verdict:** This email is **HIGHLY DANGEROUS** (Threat Score: **{score}/100**).\n\n"
+                    "**Immediate Actions Required:**\n"
+                    "1. ❌ **Do NOT click any links** or open attachments in this message.\n"
+                    "2. ❌ **Do NOT reply** or wire funds to requested accounts.\n"
+                    f"3. 🔒 **Origin IP:** Quarantine `{origin_ip}` on your border firewall/mail gateway.\n"
+                    "4. 📞 **Out-of-Band Verification:** If this claims to be from leadership or a vendor, verify via phone call using previously known contact info."
+                )
+            elif score >= 35:
+                safety_verdict = (
+                    "### ⚠️ SUSPICIOUS MESSAGE: EXERCISE EXTREME CAUTION\n\n"
+                    f"**Verdict:** This email has **ANOMALOUS INVARIANTS** (Threat Score: **{score}/100**).\n\n"
+                    "**Precautions:**\n"
+                    "1. Check the domain spelling carefully for punycode lookalikes.\n"
+                    "2. Verify SPF/DKIM authentication status before clicking any action buttons.\n"
+                    "3. Validate bank account change requests through independent phone verification."
+                )
+            else:
+                safety_verdict = (
+                    "### ✅ MESSAGE APPEARS AUTHENTIC\n\n"
+                    f"**Verdict:** Low observed risk (Threat Score: **{score}/100**).\n\n"
+                    "SPF, DKIM, and DMARC signatures align with the authorized domain, and no deceptive relay latency or urgency phrases were found."
+                )
+            return safety_verdict, "SAFETY_ASSESSMENT"
+
+        # GRATITUDE / CASUAL ACKNOWLEDGMENT
+        if any(w in q for w in ["thank you", "thanks", "thx", "awesome", "great", "cool", "got it", "ok", "okay"]):
+            return (
+                "### 🫡 Standing By, Analyst\n\n"
+                "You're welcome. All telemetry and evidence hashes are preserved in the cryptographic ledger. "
+                "Let me know whenever you need further forensic dissection or rule generation.",
+                "ACKNOWLEDGMENT"
+            )
+
+        # 1. EXPLICIT RAG INTENT (MITRE, CISA/FBI, Detection Rules, Ledger Precedents)
         if any(w in q for w in ["mitre", "playbook", "cisa", "fbi", "ic3", "snort", "sigma", "rule", "ledger", "history", "previous incident"]):
             if rag_data and rag_data.get("augmented_context"):
                 reply = [

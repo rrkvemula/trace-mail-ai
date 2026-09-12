@@ -1660,6 +1660,10 @@
 
     // 9. Render Complete Forensic Results
     function renderCompleteForensics(j) {
+      try {
+        sessionStorage.setItem('tracemail_active_report', JSON.stringify(j));
+      } catch (e) {}
+
       const score = typeof j.fraud_score === 'number' ? j.fraud_score : 0;
       const statusMsg = document.getElementById('scanStatusMsg');
       if (statusMsg) statusMsg.textContent = 'SCAN COMPLETE';
@@ -2551,39 +2555,62 @@
 
       // 4. Photorealistic Earth Core (Blue Marble 4K + Night Lights 4K + Bump Topology)
       const r = 1.65;
-      const earthGeo = new THREE.SphereGeometry(r, 64, 64);
+      const earthGeo = new THREE.SphereGeometry(r, 128, 128);
+      const maxAnisotropy = holoRenderer ? holoRenderer.capabilities.getMaxAnisotropy() : 8;
       
       const dayTex = holoTextureLoader.load('/static/textures/earth-blue-marble.jpg');
+      dayTex.anisotropy = maxAnisotropy;
+      dayTex.generateMipmaps = true;
+
       const nightTex = holoTextureLoader.load('/static/textures/earth-night.jpg');
+      nightTex.anisotropy = maxAnisotropy;
+      nightTex.generateMipmaps = true;
+
       const bumpTex = holoTextureLoader.load('/static/textures/earth-topology.png');
+      bumpTex.anisotropy = maxAnisotropy;
+      bumpTex.generateMipmaps = true;
 
       const earthMat = new THREE.MeshPhongMaterial({
         map: dayTex,
         bumpMap: bumpTex,
         bumpScale: 0.045,
         emissiveMap: nightTex,
-        emissive: new THREE.Color(0xffeedd),
-        emissiveIntensity: holoNightLightsIntensity,
-        specular: new THREE.Color(0x223344),
-        shininess: 15
+        emissive: new THREE.Color(0xffaa44),
+        emissiveIntensity: 0.28,
+        specular: new THREE.Color(0x226699),
+        shininess: 25
       });
       holoEarthMesh = new THREE.Mesh(earthGeo, earthMat);
       holoGlobeMesh.add(holoEarthMesh);
 
+      // 4b. Geospatial Sensor Grid & Orbital Latitude Rings (SIGINT Cyber Wireframe)
+      const gridGeo = new THREE.SphereGeometry(r * 1.002, 48, 24);
+      const gridMat = new THREE.MeshBasicMaterial({
+        color: 0x00f0ff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.08
+      });
+      const gridMesh = new THREE.Mesh(gridGeo, gridMat);
+      holoGlobeMesh.add(gridMesh);
+
       // 5. Atmospheric Dynamic Cloud Layer
       const cloudTex = holoTextureLoader.load('/static/textures/earth-clouds.png');
-      const cloudGeo = new THREE.SphereGeometry(r * 1.012, 64, 64);
+      cloudTex.anisotropy = maxAnisotropy;
+      cloudTex.generateMipmaps = true;
+      const cloudGeo = new THREE.SphereGeometry(r * 1.014, 128, 128);
       const cloudMat = new THREE.MeshStandardMaterial({
         map: cloudTex,
         transparent: true,
-        opacity: 0.42,
-        blending: THREE.AdditiveBlending
+        opacity: 0.26,
+        depthWrite: false,
+        blending: THREE.NormalBlending
       });
       holoCloudsMesh = new THREE.Mesh(cloudGeo, cloudMat);
       holoGlobeMesh.add(holoCloudsMesh);
 
       // 6. Atmospheric Edge / Limb Glow (God's Eye Azure Halo)
-      const atmosGeo = new THREE.SphereGeometry(r * 1.035, 64, 64);
+      const atmosGeo = new THREE.SphereGeometry(r * 1.045, 128, 128);
       const atmosMat = new THREE.ShaderMaterial({
         vertexShader: `
           varying vec3 vNormal;
@@ -2595,8 +2622,8 @@
         fragmentShader: `
           varying vec3 vNormal;
           void main() {
-            float intensity = pow(0.72 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.2);
-            gl_FragColor = vec4(0.0, 0.85, 1.0, 1.0) * intensity * 0.95;
+            float intensity = pow(0.68 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.6);
+            gl_FragColor = vec4(0.0, 0.9, 1.0, 1.0) * intensity * 1.25;
           }
         `,
         blending: THREE.AdditiveBlending,
@@ -2815,7 +2842,30 @@
       let originLat = 50.1109, originLng = 8.6821;
       let originCity = "Frankfurt", originCountry = "Germany", originIp = "185.220.101.5", originIsp = "Tor Exit Node";
 
-      if (origin && !isNaN(origin.lat) && !isNaN(origin.lng)) {
+      if (report) {
+        const traceGeo = report.trace?.geo;
+        if (traceGeo && !isNaN(traceGeo.latitude) && !isNaN(traceGeo.longitude)) {
+          originLat = Number(traceGeo.latitude);
+          originLng = Number(traceGeo.longitude);
+          originCity = traceGeo.city || originCity;
+          originCountry = traceGeo.country || originCountry;
+          originIp = traceGeo.ip || report.headers?.origin_ip || originIp;
+          originIsp = traceGeo.isp || traceGeo.org || originIsp;
+        } else if (report.hops_analysis && report.hops_analysis.length > 0) {
+          for (const h of report.hops_analysis) {
+            const hg = h.geo || {};
+            if (!isNaN(hg.latitude) && !isNaN(hg.longitude)) {
+              originLat = Number(hg.latitude);
+              originLng = Number(hg.longitude);
+              originCity = hg.city || originCity;
+              originCountry = hg.country || originCountry;
+              originIp = h.ip || hg.ip || originIp;
+              originIsp = hg.isp || hg.org || originIsp;
+              break;
+            }
+          }
+        }
+      } else if (origin && !isNaN(origin.lat) && !isNaN(origin.lng)) {
         originLat = origin.lat;
         originLng = origin.lng;
         originCity = origin.city || "Detected City";
@@ -2850,34 +2900,71 @@
       const gatewayLat = 20.5937, gatewayLng = 78.9629;
       addHoloHopArc(originLat, originLng, gatewayLat, gatewayLng, arcColor);
 
-      // Populate Timeline
+      // Populate Timeline dynamically from active email hops
       const hopsTimeline = document.getElementById('holoHopsTimeline');
       if (hopsTimeline) {
         hopsTimeline.innerHTML = '';
         
-        const hop1 = document.createElement('div');
-        hop1.className = "p-2.5 rounded-xl bg-white/5 border border-cyan-500/30 hover:border-cyan-400 cursor-pointer transition";
-        hop1.onclick = () => focusHoloNode(originLat, originLng);
-        hop1.innerHTML = `
-          <div class="flex justify-between text-[10px] text-cyan-300 font-bold">
-            <span>ORIGIN TARGET INTERCEPT</span>
-            <span>${originIp}</span>
-          </div>
-          <div class="text-[11px] text-slate-300 mt-0.5">${originCity}, ${originCountry}</div>
-        `;
-        hopsTimeline.appendChild(hop1);
+        const hopsList = (report && report.hops_analysis && report.hops_analysis.length > 0) 
+          ? report.hops_analysis 
+          : null;
 
-        const hop2 = document.createElement('div');
-        hop2.className = "p-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-400 cursor-pointer transition";
-        hop2.onclick = () => focusHoloNode(gatewayLat, gatewayLng);
-        hop2.innerHTML = `
-          <div class="flex justify-between text-[10px] text-emerald-400 font-bold">
-            <span>DEFENSE GATEWAY (INBOX)</span>
-            <span>Secure MX Receiver</span>
-          </div>
-          <div class="text-[11px] text-slate-400 mt-0.5">Corporate Defense Node • 20.59° N, 78.96° E</div>
-        `;
-        hopsTimeline.appendChild(hop2);
+        if (hopsList) {
+          let prevLat = originLat, prevLng = originLng;
+          hopsList.forEach((hop, idx) => {
+            const hg = hop.geo || {};
+            const hopIp = hop.ip || hg.ip || `Relay #${idx + 1}`;
+            const hopCity = hg.city && hg.city !== 'Unavailable' ? hg.city : 'Network Node';
+            const hopCountry = hg.country && hg.country !== 'Unavailable' ? hg.country : '';
+            const hopLat = !isNaN(hg.latitude) ? Number(hg.latitude) : null;
+            const hopLng = !isNaN(hg.longitude) ? Number(hg.longitude) : null;
+            const hopIsp = hg.isp || hg.org || hop.by || 'Mail Transfer Agent';
+
+            const hopItem = document.createElement('div');
+            hopItem.className = "p-2.5 rounded-xl bg-white/5 border " + (idx === 0 ? "border-red-500/40 bg-red-950/20" : "border-cyan-500/30") + " hover:border-cyan-400 cursor-pointer transition";
+            if (hopLat !== null && hopLng !== null) {
+              hopItem.onclick = () => focusHoloNode(hopLat, hopLng);
+            }
+            hopItem.innerHTML = `
+              <div class="flex justify-between text-[10px] ${idx === 0 ? 'text-red-300' : 'text-cyan-300'} font-bold">
+                <span>HOP #${idx + 1} (${idx === 0 ? 'ORIGIN' : 'RELAY'})</span>
+                <span>${hopIp}</span>
+              </div>
+              <div class="text-[11px] text-slate-300 mt-0.5">${hopCity}${hopCountry ? ', ' + hopCountry : ''} • ${hopIsp}</div>
+            `;
+            hopsTimeline.appendChild(hopItem);
+
+            if (idx > 0 && hopLat !== null && hopLng !== null) {
+              addHoloHopArc(prevLat, prevLng, hopLat, hopLng, 0x00d4ff);
+              prevLat = hopLat;
+              prevLng = hopLng;
+            }
+          });
+        } else {
+          const hop1 = document.createElement('div');
+          hop1.className = "p-2.5 rounded-xl bg-white/5 border border-cyan-500/30 hover:border-cyan-400 cursor-pointer transition";
+          hop1.onclick = () => focusHoloNode(originLat, originLng);
+          hop1.innerHTML = `
+            <div class="flex justify-between text-[10px] text-cyan-300 font-bold">
+              <span>ORIGIN TARGET INTERCEPT</span>
+              <span>${originIp}</span>
+            </div>
+            <div class="text-[11px] text-slate-300 mt-0.5">${originCity}, ${originCountry}</div>
+          `;
+          hopsTimeline.appendChild(hop1);
+
+          const hop2 = document.createElement('div');
+          hop2.className = "p-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-400 cursor-pointer transition";
+          hop2.onclick = () => focusHoloNode(gatewayLat, gatewayLng);
+          hop2.innerHTML = `
+            <div class="flex justify-between text-[10px] text-emerald-400 font-bold">
+              <span>DEFENSE GATEWAY (INBOX)</span>
+              <span>Secure MX Receiver</span>
+            </div>
+            <div class="text-[11px] text-slate-400 mt-0.5">Corporate Defense Node • 20.59° N, 78.96° E</div>
+          `;
+          hopsTimeline.appendChild(hop2);
+        }
       }
 
       focusGodsEyeLock();
@@ -2932,7 +3019,9 @@
       const panel = document.getElementById('holoRadarPanel');
       if (!modal || !panel) return;
 
+      modal.style.display = 'flex';
       modal.style.pointerEvents = 'auto';
+      void modal.offsetWidth;
       backdrop.classList.add('active');
       panel.classList.add('active');
 
@@ -2960,6 +3049,24 @@
       if (holoAnimFrameId) {
         cancelAnimationFrame(holoAnimFrameId);
         holoAnimFrameId = null;
+      }
+
+      setTimeout(() => {
+        if (!holoRadarActive && modal) {
+          modal.style.display = 'none';
+        }
+      }, 420);
+
+      // GUARANTEE: Ensure the active email forensic results remain fully rendered and smoothly scroll back into view
+      const repState = document.getElementById('resReport');
+      const emptyState = document.getElementById('resEmptyState');
+      if (currentForensicReport && repState) {
+        if (emptyState) emptyState.classList.add('hidden');
+        repState.classList.remove('hidden');
+        const resEl = document.getElementById('results');
+        if (resEl) {
+          resEl.scrollIntoView({ behavior: 'smooth' });
+        }
       }
     }
 
@@ -3037,13 +3144,27 @@
       if (e.key === 'Escape' && holoRadarActive) {
         closeHoloRadarSlide();
       }
+    // Automatically restore active forensic analysis from sessionStorage if returning to dashboard
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        const saved = sessionStorage.getItem('tracemail_active_report');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && (parsed.fraud_score !== undefined || parsed.headers)) {
+            currentForensicReport = parsed;
+            renderCompleteForensics(parsed);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not restore cached report:', e);
+      }
     });
   </script>
 
   <!-- =========================================================================
        "GOD'S EYE" // DEDICATED PHOTOREALISTIC EARTH RECONNAISSANCE STAGE
        ========================================================================= -->
-  <div id="holoRadarModal" class="fixed inset-0 z-[120] pointer-events-none flex justify-end" style="pointer-events: none;">
+  <div id="holoRadarModal" class="fixed inset-0 z-[120] pointer-events-none flex justify-end" style="display: none; pointer-events: none;">
     <!-- Frosted Backdrop Blur -->
     <div id="holoRadarBackdrop" onclick="closeHoloRadarSlide()" class="fixed inset-0 bg-black/85 backdrop-blur-2xl"></div>
 
