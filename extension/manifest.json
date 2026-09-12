@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "TraceMail AI — Webmail Forensic Sentry",
+  "version": "1.0.0",
+  "description": "1-Click RFC 5322 Invariant Auditing, Phishing & BEC Detection, and 3D Planetary Radar directly inside Gmail & Outlook.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://outlook.live.com/*",
+    "https://outlook.office.com/*",
+    "http://localhost:8899/*",
+    "http://127.0.0.1:8899/*",
+    "https://*.trycloudflare.com/*",
+    "https://*.onrender.com/*",
+    "https://*.hf.space/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TraceMail AI Sentry"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mail.google.com/*",
+        "https://outlook.live.com/*",
+        "https://outlook.office.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

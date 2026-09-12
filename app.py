@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from fastapi import FastAPI, UploadFile, File, Form, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -58,6 +59,14 @@ app = FastAPI(
     version="2.1.0",
     description="Evidence-Based Email Threat Detection, Geolocation & Forensic Intelligence Platform",
     lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.middleware("http")
@@ -550,5 +559,6 @@ async def copilot_chat(payload: ChatRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starting TRACE-MAIL AI Forensic Platform on http://127.0.0.1:8899")
-    uvicorn.run(app, host="0.0.0.0", port=8899)
+    port = int(os.environ.get("PORT", 8899))
+    print(f"🚀 Starting TRACE-MAIL AI Forensic Platform on http://127.0.0.1:{port}")
+    uvicorn.run(app, host="0.0.0.0", port=port)
