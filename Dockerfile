@@ -18,8 +18,9 @@ COPY . .
 # Create reports and data directories
 RUN mkdir -p reports data
 
-# Default port (Render/Railway will override with $PORT, default is 8899)
-ENV PORT=8899
-EXPOSE 8899
+# Default environment for container (HF Spaces and cloud hosts)
+ENV HOST=0.0.0.0
+ENV PORT=7860
+EXPOSE 7860
 
 CMD ["python3", "app.py"]

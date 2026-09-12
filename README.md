@@ -1,3 +1,13 @@
+---
+title: TRACE-MAIL AI Forensic Intelligence
+emoji: 🛡️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # TRACE-MAIL AI 🛡️
 ### AI-Powered Email Threat Detection, GeoLocation & Forensic Intelligence Platform
 **Smart India Hackathon 2026** • **PS ID: SIH26106 (AICTE)**  
