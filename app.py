@@ -595,8 +595,8 @@ async def scan(
         logger.error("Forensic analysis pipeline failed: %s", ex, exc_info=True)
         import traceback
         tb = traceback.format_exc()
-        last_line = tb.strip().splitlines()[-2] if len(tb.strip().splitlines()) >= 2 else ""
-        raise HTTPException(status_code=500, detail=f"Forensic analysis failed: {type(ex).__name__}: {str(ex)} | {last_line}")
+        tb_snippet = " --- ".join(tb.strip().splitlines()[-8:])
+        raise HTTPException(status_code=500, detail=f"Forensic analysis failed: {type(ex).__name__}: {str(ex)} | {tb_snippet}")
 
 
 @app.post("/api/analyze")
