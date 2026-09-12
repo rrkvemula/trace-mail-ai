@@ -46,10 +46,70 @@ class EmailParser:
 
     def __init__(self, raw_content: Union[str, bytes]):
         self.raw_bytes = raw_content if isinstance(raw_content, bytes) else raw_content.encode('utf-8')
-        self.raw_content = self.raw_bytes.decode('utf-8', errors='replace')
         self.sha256_hash = hashlib.sha256(self.raw_bytes).hexdigest()
+        self.is_pdf_export = False
+
+        if self.raw_bytes.startswith(b"%PDF"):
+            self.is_pdf_export = True
+            extracted_text = self._extract_text_from_pdf(self.raw_bytes)
+            self.raw_content = extracted_text
+        else:
+            self.raw_content = self.raw_bytes.decode('utf-8', errors='replace')
+
         sanitized = self._sanitize_raw_text(self.raw_content)
         self.msg = email.message_from_string(sanitized, policy=email.policy.default)
+
+    @classmethod
+    def _extract_text_from_pdf(cls, pdf_bytes: bytes) -> str:
+        """Extracts text and structures email headers from mobile PDF email printouts/exports."""
+        try:
+            import pypdf
+            import io
+            reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+            pages_text = []
+            for p in reader.pages:
+                t = p.extract_text()
+                if t:
+                    pages_text.append(t)
+            full_text = "\n".join(pages_text).strip()
+
+            lines = full_text.splitlines()
+            reconstructed_headers = []
+            body_lines = []
+            in_header_block = True
+            found_any_header = False
+
+            common_headers = {"from", "to", "subject", "date", "reply-to", "cc", "bcc"}
+            for line in lines:
+                line_stripped = line.strip()
+                if in_header_block:
+                    m = re.match(r"^([A-Za-z\-]+):\s*(.*)$", line_stripped)
+                    if m and m.group(1).lower() in common_headers:
+                        reconstructed_headers.append(f"{m.group(1)}: {m.group(2)}")
+                        found_any_header = True
+                    elif found_any_header and not line_stripped:
+                        in_header_block = False
+                    elif found_any_header and not m:
+                        in_header_block = False
+                        body_lines.append(line)
+                    else:
+                        body_lines.append(line)
+                else:
+                    body_lines.append(line)
+
+            if found_any_header:
+                return "\n".join(reconstructed_headers) + "\n\n" + "\n".join(body_lines)
+
+            # If no labeled headers, look for sender email in first few lines
+            for i in range(min(6, len(lines))):
+                email_match = re.search(r"([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)", lines[i])
+                if email_match:
+                    sender_email = email_match.group(1)
+                    return f"From: {sender_email}\nSubject: Mobile PDF Email Export\n\n" + full_text
+
+            return full_text
+        except Exception:
+            return ""
 
     @staticmethod
     def _sanitize_raw_text(text: str) -> str:
@@ -101,6 +161,7 @@ class EmailParser:
         return {
             "forensic_hash": self.sha256_hash,
             "parsed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "is_pdf_export": getattr(self, "is_pdf_export", False),
             "headers": headers,
             "origin_ip": origin_evidence.get("ip"),
             "origin_evidence": origin_evidence,
@@ -251,6 +312,14 @@ class EmailParser:
                 "source": "Earliest Received header",
                 "confidence": "LOW",
                 "note": "Only a private or otherwise unverified relay address was available."
+            }
+
+        if getattr(self, "is_pdf_export", False) and not hops:
+            return {
+                "ip": None,
+                "source": "Mobile PDF Visual Printout",
+                "confidence": "VISUAL_SNAPSHOT",
+                "note": "Document uploaded as a mobile PDF printout. Visual email snapshots preserve rendered text but lack hidden RFC 5322 Received hops and DKIM digital signatures."
             }
 
         return {
