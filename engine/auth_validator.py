@@ -14,6 +14,12 @@ try:
 except ImportError:
     DNS_AVAILABLE = False
 
+try:
+    import dkim
+    DKIMPY_AVAILABLE = True
+except ImportError:
+    DKIMPY_AVAILABLE = False
+
 
 class AuthValidator:
     """Evaluates cryptographic email authentication and domain alignment under RFC 7489."""
@@ -40,9 +46,20 @@ class AuthValidator:
     _DNS_CACHE: Dict[str, Dict[str, Any]] = {}
     _MAX_DNS_CACHE: int = 500
 
-    def __init__(self, headers: Dict[str, Any], hops: Optional[List[Dict[str, Any]]] = None):
+    def __init__(
+        self,
+        headers: Dict[str, Any],
+        hops: Optional[List[Dict[str, Any]]] = None,
+        raw_content: Optional[Any] = None
+    ):
         self.headers = headers
         self.hops = hops or []
+        if isinstance(raw_content, str):
+            self.raw_content = raw_content.encode("utf-8", errors="replace")
+        elif isinstance(raw_content, bytes):
+            self.raw_content = raw_content
+        else:
+            self.raw_content = None
         self.from_header = headers.get("from", "")
         self.return_path_header = headers.get("return_path", "")
         self.from_domain = self._extract_domain(self.from_header)
@@ -87,9 +104,23 @@ class AuthValidator:
 
         clean_id = authserv_id.lower().strip()
 
-        # Check 1: If authserv-id matches sender domain, it is self-signed/forged by sender!
+        # Check 1: If authserv-id matches sender domain:
         if self.from_domain and (clean_id == self.from_domain or clean_id.endswith("." + self.from_domain)):
-            return {"is_trusted": False, "reason": f"Untrusted authserv-id matches sender domain ({clean_id}); potential self-signed/forged header"}
+            # Check if this is legitimate internal same-domain communication
+            to_hdr = str(self.headers.get("to", ""))
+            to_dom = self._extract_domain(to_hdr)
+            from_org = self.get_organizational_domain(self.from_domain)
+            to_org = self.get_organizational_domain(to_dom)
+
+            if to_org and from_org and to_org == from_org:
+                return {
+                    "is_trusted": True,
+                    "reason": f"Internal domain authority ({clean_id}) verified for intra-organizational communication ({from_org})"
+                }
+            return {
+                "is_trusted": False,
+                "reason": f"Untrusted authserv-id matches sender domain ({clean_id}) in external delivery; potential self-signed/forged header"
+            }
 
         # Check 2: Matches known trusted receiver MTAs
         for trusted in self.KNOWN_TRUSTED_RECEIVER_DOMAINS:
@@ -126,23 +157,40 @@ class AuthValidator:
             dkim_passed_and_aligned
         )
 
-        # RFC 7601: Extract authserv-id from Authentication-Results
-        authserv_id = ""
-        auth_hdr = self.headers.get("authentication_results", [])
-        if auth_hdr:
-            first_ar = str(auth_hdr[0]).strip()
-            m_authserv = re.match(r'^([a-zA-Z0-9.\-_]+)\s*;', first_ar)
-            if m_authserv:
-                authserv_id = m_authserv.group(1).lower()
+        # RFC 7601: Parse all Authentication-Results headers to identify the trusted boundary receiver
+        auth_headers = self.headers.get("authentication_results", [])
+        if isinstance(auth_headers, str):
+            auth_headers = [auth_headers]
 
-        authserv_eval = self._evaluate_authserv_trust(authserv_id)
+        best_authserv_id = ""
+        best_eval = {"is_trusted": True, "reason": "No authserv-id declared"}
+
+        for ar in auth_headers:
+            m_authserv = re.match(r'^([a-zA-Z0-9.\-_]+)\s*;', str(ar).strip())
+            if m_authserv:
+                candidate_id = m_authserv.group(1).lower()
+                c_eval = self._evaluate_authserv_trust(candidate_id)
+                if c_eval["is_trusted"]:
+                    best_authserv_id = candidate_id
+                    best_eval = c_eval
+                    break
+                elif not best_authserv_id:
+                    best_authserv_id = candidate_id
+                    best_eval = c_eval
+
+        authserv_id = best_authserv_id
+        authserv_eval = best_eval
         is_trusted_authserv = authserv_eval["is_trusted"]
+        is_independently_verified = dkim_info.get("independently_verified", False)
 
         # Determine evidence status and overall verdict
         if not is_trusted_authserv and authserv_id:
             overall_verdict = "UNTRUSTED_AUTHSERV"
             evidence_status = "FORGED_OR_UNTRUSTED_AUTHSERV"
             composite_pass = False
+        elif is_independently_verified and composite_pass:
+            overall_verdict = "REPORTED_PASS"
+            evidence_status = "INDEPENDENTLY_VERIFIED_PASS"
         elif composite_pass:
             overall_verdict = "REPORTED_PASS"
             evidence_status = "RECEIVER_REPORTED_PASS"
@@ -278,13 +326,31 @@ class AuthValidator:
             if header_s:
                 selector = header_s.group(1).lower().strip('"')
 
+        independent_verification = "DKIM_RECEIVER_REPORTED_ONLY"
+        independently_verified = False
+
+        if DKIMPY_AVAILABLE and self.raw_content and dkim_sigs:
+            try:
+                # Independent cryptographic verification against DNS public key under RFC 6376
+                verified = dkim.verify(self.raw_content)
+                if verified:
+                    independent_verification = "DKIM_INDEPENDENTLY_VERIFIED"
+                    independently_verified = True
+                    details += " Cryptographically validated against DNS public key (RFC 6376)."
+                else:
+                    independent_verification = "DKIM_VERIFICATION_FAILED"
+                    details += " Independent cryptographic verification failed against DNS public key!"
+            except Exception as ex:
+                independent_verification = f"DKIM_VERIFICATION_ERROR ({type(ex).__name__})"
+
         return {
             "status": status,
             "signature_domain": dkim_domain,
             "selector": selector,
             "details": details,
-            "evidence_source": "Message authentication headers",
-            "independently_verified": False
+            "evidence_source": "Message authentication headers + Live DNS RFC 6376 cryptographic audit" if independently_verified else "Message authentication headers",
+            "independently_verified": independently_verified,
+            "independent_status": independent_verification
         }
 
     def _audit_dmarc(self, spf_info: Dict[str, Any], dkim_info: Dict[str, Any]) -> Dict[str, Any]:

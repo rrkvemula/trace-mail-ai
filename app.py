@@ -744,15 +744,27 @@ async def copilot_chat(payload: ChatRequest):
 async def record_user_feedback(req: FeedbackRequest):
     """
     Stores analyst feedback (e.g. false positives, allowlisted senders, reported threats).
-    Adheres to continuous active triage tuning principles.
+    Adheres to continuous active triage tuning and scoped allowlist principles.
     """
+    FREE_CONSUMER_PROVIDERS = {
+        "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "outlook.com",
+        "hotmail.com", "live.com", "msn.com", "aol.com", "proton.me", "protonmail.com",
+        "icloud.com", "me.com", "mac.com", "zoho.com", "mail.com"
+    }
+
     sender = (req.sender_email or "").strip().lower()
     domain = (req.sender_domain or "").strip().lower()
+    target_desc = sender or domain or "Not specified"
+
     if req.feedback_type == "ALLOWLIST_SENDER":
         if sender:
             USER_ALLOWLIST.add(sender)
-        if domain:
+        # Protect against allowlisting shared consumer domains (e.g. all of @gmail.com)
+        if domain and domain not in FREE_CONSUMER_PROVIDERS:
             USER_ALLOWLIST.add(domain)
+            target_desc = f"Domain '@{domain}' and sender '{sender}'"
+        elif sender:
+            target_desc = f"Exact sender '{sender}' (shared provider '{domain}' cannot be globally allowlisted)"
 
     feedback_entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -772,7 +784,7 @@ async def record_user_feedback(req: FeedbackRequest):
     return {
         "status": "RECORDED",
         "feedback_type": req.feedback_type,
-        "target": sender or domain or "Not specified",
+        "target": target_desc,
         "message": f"Feedback '{req.feedback_type}' logged successfully. Sender will be prioritized in your triage allowlist."
     }
 

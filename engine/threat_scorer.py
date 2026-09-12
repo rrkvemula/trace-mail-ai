@@ -32,7 +32,7 @@ class ThreatScorer:
         "CRYPTO_AUTH": {"DMARC_FAIL", "SPF_FAIL", "FORGED_OR_UNTRUSTED_AUTHSERV"},
         "IDENTITY_ROUTING": {"DISPLAY_NAME_SPOOFING", "REPLY_TO_ORG_MISMATCH", "REVERSED_TIMING_ANOMALY"},
         "INFRA_URL": {"SSRF_INTERNAL_TARGET", "PUNYCODE_LOOKALIKE", "IP_LITERAL_URL", "SUSPICIOUS_URL"},
-        "PAYLOAD_SECURITY": {"WEAPONIZED_ATTACHMENT"},
+        "PAYLOAD_SECURITY": {"WEAPONIZED_ATTACHMENT", "DOUBLE_EXTENSION_DECEPTION", "MIME_EXTENSION_MISMATCH"},
         "BEC_FINANCIAL_FRAUD": {"BEC_VENDOR_FINANCIAL_DIVERSION", "BEC_VERIFICATION_EVASION"},
     }
 
@@ -387,10 +387,41 @@ class ThreatScorer:
                 })
                 break
 
-        # Attachments inspection (e.g. .exe, .scr, .iso, .vbs)
-        dangerous_exts = [".exe", ".scr", ".iso", ".vbs", ".bat", ".hta", ".docm", ".cmd", ".ps1"]
+        # Attachments inspection (e.g. .exe, .scr, .iso, .vbs, double-extensions, MIME mismatch)
+        dangerous_exts = [".exe", ".scr", ".iso", ".vbs", ".bat", ".hta", ".docm", ".xlsm", ".cmd", ".ps1", ".wsf", ".cpl", ".jar"]
+        double_ext_pattern = re.compile(r'\.(pdf|docx?|xlsx?|txt|jpg|png|csv)\.(exe|scr|vbs|bat|hta|cmd|ps1|js|jar|cpl|iso)\b', re.I)
+
         for att in self.parsed.get("attachments", []):
             fname = att.get("filename", "").lower()
+            content_type = (att.get("content_type") or "").lower()
+
+            # 1. Double extension deception (e.g. invoice.pdf.exe)
+            if double_ext_pattern.search(fname):
+                self.score += 45.0
+                self.detections.append("DOUBLE_EXTENSION_DECEPTION")
+                self.detections.append("WEAPONIZED_ATTACHMENT")
+                self.factors.append({
+                    "category": "ATTACHMENT_SECURITY",
+                    "impact": "+45 pts (Critical Double-Extension)",
+                    "severity": "CRITICAL",
+                    "detail": f"Malicious double-extension deception detected: '{fname}'. Disguises executable malware as a benign document."
+                })
+                break
+
+            # 2. MIME type mismatch (declared as document/image but carrying executable payload)
+            if ("pdf" in content_type or "word" in content_type or "image" in content_type) and any(fname.endswith(ext) for ext in [".exe", ".scr", ".vbs", ".hta", ".bat"]):
+                self.score += 40.0
+                self.detections.append("MIME_EXTENSION_MISMATCH")
+                self.detections.append("WEAPONIZED_ATTACHMENT")
+                self.factors.append({
+                    "category": "ATTACHMENT_SECURITY",
+                    "impact": "+40 pts",
+                    "severity": "CRITICAL",
+                    "detail": f"MIME header mismatch: Payload declared as '{content_type}' but filename is '{fname}'."
+                })
+                break
+
+            # 3. Direct weaponized extension
             if any(fname.endswith(ext) for ext in dangerous_exts):
                 self.score += 35.0
                 self.detections.append("WEAPONIZED_ATTACHMENT")
@@ -398,7 +429,7 @@ class ThreatScorer:
                     "category": "ATTACHMENT_SECURITY",
                     "impact": "+35 pts",
                     "severity": "CRITICAL",
-                    "detail": f"Potentially executable or weaponized attachment detected: {fname}"
+                    "detail": f"Potentially executable or macro-weaponized attachment detected: {fname}"
                 })
                 break
 

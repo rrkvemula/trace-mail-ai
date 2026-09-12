@@ -477,6 +477,61 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(card.get("status"), "EXPERIMENTAL_TEXT_SIGNAL")
         self.assertIn("limitations", card)
 
+    def test_internal_same_domain_authserv_is_trusted(self):
+        """Ensures that internal same-domain mail with matching authserv-id is trusted rather than marked forged."""
+        from engine.auth_validator import AuthValidator
+        headers = {
+            "from": "hr@mycorp.com",
+            "to": "employee@mycorp.com",
+            "authentication_results": ["mycorp.com; spf=pass; dkim=pass; dmarc=pass"]
+        }
+        validator = AuthValidator(headers)
+        audit = validator.audit()
+        self.assertTrue(audit.get("is_trusted_authserv"))
+        self.assertIn("Internal domain authority", audit["authserv_evaluation"].get("reason", ""))
+
+    def test_double_extension_attachment_detection(self):
+        """Ensures that dangerous double extensions (e.g. invoice.pdf.exe) trigger high-severity alert."""
+        from engine.threat_scorer import ThreatScorer
+        parsed = {
+            "headers": {"from": "vendor@supplies.com", "to": "user@corp.com", "subject": "Invoice"},
+            "body": {"plain_text": "Please see attached invoice."},
+            "attachments": [{"filename": "invoice_march.pdf.exe", "content_type": "application/x-msdownload"}]
+        }
+        auth = {"composite_pass": False, "is_unverified": True, "spf": {"status": "NONE"}, "dkim": {"status": "NONE"}, "dmarc": {"status": "NONE"}}
+        hop = {"has_timing_anomalies": False, "analyzed_hops": []}
+        scorer = ThreatScorer(parsed, auth, hop)
+        res = scorer.calculate()
+        self.assertIn("DOUBLE_EXTENSION_DECEPTION", res.get("detections", []))
+        self.assertIn("WEAPONIZED_ATTACHMENT", res.get("detections", []))
+        self.assertGreaterEqual(res.get("threat_score"), 45.0)
+
+    def test_mime_extension_mismatch_detection(self):
+        """Ensures that declared MIME type mismatch with executable payload is flagged."""
+        from engine.threat_scorer import ThreatScorer
+        parsed = {
+            "headers": {"from": "admin@service.com", "to": "user@corp.com", "subject": "Document"},
+            "body": {"plain_text": "Attached form"},
+            "attachments": [{"filename": "form.scr", "content_type": "application/pdf"}]
+        }
+        auth = {"composite_pass": False, "is_unverified": True, "spf": {"status": "NONE"}, "dkim": {"status": "NONE"}, "dmarc": {"status": "NONE"}}
+        hop = {"has_timing_anomalies": False, "analyzed_hops": []}
+        scorer = ThreatScorer(parsed, auth, hop)
+        res = scorer.calculate()
+        self.assertIn("MIME_EXTENSION_MISMATCH", res.get("detections", []))
+
+    def test_independent_dkim_verification_rfc6376(self):
+        """Verifies that authentic signed Tata email receives INDEPENDENTLY_VERIFIED_PASS via dkimpy."""
+        tata_path = "/home/rkvemula/Downloads/Final Call_ Tata is Hiring _ Work with the Tata Group.eml"
+        if os.path.exists(tata_path):
+            with open(tata_path, "rb") as f:
+                eml_bytes = f.read()
+            report = ForensicPipeline.process_raw_email(eml_bytes)
+            auth = report.get("authentication", {})
+            self.assertEqual(auth.get("evidence_status"), "INDEPENDENTLY_VERIFIED_PASS")
+            self.assertTrue(auth.get("dkim", {}).get("independently_verified"))
+            self.assertEqual(auth.get("dkim", {}).get("independent_status"), "DKIM_INDEPENDENTLY_VERIFIED")
+
 
 if __name__ == "__main__":
     unittest.main()

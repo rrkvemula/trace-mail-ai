@@ -1,0 +1,782 @@
+TRACE-MAIL AI — RECOMMENDED CHANGES
+==================================
+
+Goal: turn TraceMail AI from a strong manual forensic dashboard into an
+evidence-first, low-false-positive, automatic mailbox guardian.
+
+Do not turn it into a literal Windows Defender clone. Defender has endpoint,
+driver, process, memory, sandbox, and enterprise-policy telemetry that TraceMail
+does not need. TraceMail's best identity is:
+
+    automatic email forensic triage + authentication verification
+    + explainable risk + actionable alerts
+
+
+1. FORENSIC TRUTH LAYER
+-----------------------
+
+1.1 Make deterministic evidence the primary verdict source
+
+Priority order:
+
+    1. Raw MIME message
+    2. Received headers
+    3. Return-Path
+    4. From
+    5. Reply-To
+    6. Authentication-Results
+    7. DKIM-Signature
+    8. DNS SPF/DKIM/DMARC records
+    9. Message-ID
+    10. Link structure
+    11. Attachment metadata
+    12. Heuristics
+    13. Reputation
+    14. ML/DL
+    15. RAG explanation
+
+Rule:
+
+    Deterministic evidence decides the verdict.
+    ML contributes advisory signal only.
+    RAG explains the verdict; it does not create the verdict.
+
+
+1.2 Add independent SPF evaluation
+
+Current behavior relies heavily on receiver-reported Authentication-Results.
+Add real SPF evaluation:
+
+    - Parse the SPF TXT record.
+    - Resolve include: mechanisms recursively.
+    - Handle ip4:, ip6:, a, mx, redirect=.
+    - Prevent include loops.
+    - Evaluate whether the connecting relay IP is actually authorized.
+    - Return proper states:
+        SPF_PASS
+        SPF_FAIL
+        SPF_SOFTFAIL
+        SPF_NONE
+        SPF_TEMP_ERROR
+        SPF_PERM_ERROR
+        SPF_NOT_EVALUATED
+
+
+1.3 Add real DKIM cryptographic verification
+
+Do not only trust "dkim=pass" in Authentication-Results.
+
+Add independent DKIM verification:
+
+    - Parse DKIM-Signature.
+    - Extract v, a, b, bh, d, s, h, c.
+    - Fetch selector._domainkey.domain.com.
+    - Decode the public key.
+    - Canonicalize signed headers and body.
+    - Recompute the body hash.
+    - Cryptographically verify the signature.
+
+Result states:
+
+    DKIM_SIGNATURE_VERIFIED
+    DKIM_SIGNATURE_INVALID
+    DKIM_SIGNATURE_MISSING
+    DKIM_PUBLIC_KEY_NOT_FOUND
+    DKIM_ALGORITHM_UNSUPPORTED
+    DKIM_BODY_HASH_MISMATCH
+
+
+1.4 Add receiver trust model
+
+Not every Authentication-Results header is equally trustworthy.
+
+Classify the verifier:
+
+    TRUSTED_PROVIDER_VERIFIED
+    KNOWN_RECEIVER_VERIFIED
+    UNKNOWN_RECEIVER_REPORTED
+    UNTRUSTED_OR_INJECTED
+
+Known providers can include:
+
+    google.com
+    outlook.com
+    protection.outlook.com
+    yahoo.com
+    zoho.com
+    sendgrid.net
+    amazonses.com
+
+If the authserv-id is unrelated to the receiver chain, lower confidence.
+
+
+1.5 Separate location concepts
+
+Do not show all of these as "sender location".
+
+Use distinct fields:
+
+    sender_client_ip
+    sender_domain_infrastructure
+    originating_relay_ip
+    relay_infrastructure
+    link_host_infrastructure
+    analyst_or_requester_ip
+
+Also split:
+
+    risk_score
+    evidence_strength
+    recommended_action
+
+Example:
+
+    risk_score: 78
+    evidence_strength: MEDIUM
+    recommended_action: VERIFY_OUT_OF_BAND
+
+
+1.6 Improve Received-header parsing
+
+Current parsing extracts IPs from text but should be more structural.
+
+Parse the actual:
+
+    from ... [IP]
+
+clause and separate:
+
+    - source MTA IP
+    - receiving MTA IP
+    - NAT/public gateway IP
+    - private/internal relay IP
+
+Handle:
+
+    - IPv4
+    - IPv6
+    - private ranges
+    - loopback
+    - link-local
+    - reserved ranges
+    - clock skew
+    - forged relay patterns
+
+Keep confidence labels:
+
+    HIGH
+    MEDIUM
+    LOW
+    UNVERIFIED
+
+
+1.7 Improve mobile PDF handling
+
+PDF printouts usually lose forensic headers.
+
+For mobile PDFs:
+
+    - Preserve Received, X-Originating-IP, Authentication-Results,
+      DKIM-Signature, Return-Path, Received-SPF when present.
+    - If absent, clearly show:
+        "Sender IP unavailable: original routing headers are not present
+        in this PDF printout."
+    - Add instructions for downloading original .eml from Gmail/Outlook.
+
+Never imply that a link-host or domain lookup is the sender's physical location.
+
+
+2. ML, DL, TRANSFORMER, RAG
+---------------------------
+
+2.1 Demote ML from decision-maker to advisory signal
+
+Policy:
+
+    if deterministic authentication fails:
+        ML can add meaningful risk
+
+    if deterministic authentication passes:
+        ML can add only small advisory weight
+
+    if ML alone is suspicious:
+        label as REVIEW, not HIGH_RISK
+
+Do not allow text keywords alone to create a high-risk verdict.
+
+
+2.2 Add model validation
+
+Before claiming production-level ML, add:
+
+    - labeled train/validation/test sets
+    - temporal split, not random split
+    - precision
+    - recall
+    - F1
+    - false-positive rate
+    - ROC-AUC
+    - confusion matrix
+    - calibration curve
+    - threshold tuning
+
+Expose model status in the report:
+
+    {
+      "model": "distilbert-int8",
+      "test_samples": 1200,
+      "precision_at_threshold": 0.93,
+      "false_positive_rate": 0.04,
+      "validation_date": "..."
+    }
+
+
+2.3 Use RAG only for explanation
+
+RAG should answer:
+
+    - Why did SPF fail?
+    - What does DMARC alignment mean?
+    - Why is this domain suspicious?
+    - What should the user verify out-of-band?
+
+It should not override deterministic forensic results.
+
+
+2.4 Reduce false positives
+
+Never mark email as high-risk from only:
+
+    urgent
+    invoice
+    password reset
+    wire transfer
+
+Require a combination:
+
+    - auth failure or unverified auth
+    - reply-to mismatch
+    - new sender
+    - lookalike domain
+    - free-mail sender impersonating an executive
+    - dangerous link or attachment
+    - financial request pattern
+    - unusual request compared with prior communication
+
+
+3. PERSONAL TRUST GRAPH
+-----------------------
+
+For real personal/family use, add a local trust graph.
+
+3.1 Contact allowlist
+
+Add:
+
+    family@example.com
+    college@example.edu
+    bank@example.com
+    employer@example.com
+    known vendors
+
+Labels:
+
+    TRUSTED_CONTACT
+    TRUSTED_CONTACT_WITH_UNUSUAL_REQUEST
+
+Do not blindly trust trusted contacts forever. If a trusted sender suddenly
+requests a bank-detail change, still alert.
+
+
+3.2 Prior-communication context
+
+With mailbox integration, compute:
+
+    - first-time sender?
+    - previously contacted?
+    - same From domain?
+    - same DKIM selector?
+    - previous financial emails?
+    - reply-to changed suddenly?
+    - attachment type changed suddenly?
+
+Signals:
+
+    NEW_SENDER
+    KNOWN_CONTACT
+    KNOWN_DOMAIN
+    REPLY_TO_CHANGED
+    NEW_BANK_REQUEST_PATTERN
+    FIRST_TIME_HIGH_RISK_REQUEST
+
+
+3.3 False-positive feedback
+
+Add buttons:
+
+    This is safe
+    This is dangerous
+
+Store:
+
+    message_id
+    user verdict
+    model verdict
+    deterministic verdict
+    auth result
+    features
+
+Use this feedback to tune thresholds later.
+
+
+4. ACTIVE AUTOMATIC SCANNING
+-----------------------------
+
+4.1 New ingestion model
+
+Change from:
+
+    user uploads email -> scan -> report
+
+to:
+
+    one-time authorization -> mailbox notification -> fetch raw MIME
+    -> automatic scan -> alert/report
+
+Add:
+
+    POST /v1/ingest/email
+
+Body:
+
+    {
+      "tenant_id": "...",
+      "source": "gmail | microsoft_graph | mail_gateway | extension",
+      "message_id": "...",
+      "raw_mime": "...",
+      "idempotency_key": "..."
+    }
+
+Flow:
+
+    1. Authenticate caller
+    2. Deduplicate by Message-ID / forensic hash
+    3. Enqueue scan
+    4. Scan in background
+    5. Store result
+    6. Notify user/extension/SIEM
+    7. Optional tag/quarantine through mail gateway
+
+
+4.2 Gmail integration
+
+Use Gmail API + Google Cloud Pub/Sub.
+
+Scopes:
+
+    https://www.googleapis.com/auth/gmail.readonly
+
+Flow:
+
+    1. User authorizes once.
+    2. Create Gmail watch.
+    3. Gmail notifies Pub/Sub on mailbox history change.
+    4. Backend receives historyId.
+    5. Fetch history.
+    6. Fetch each message with format=raw.
+    7. Send raw MIME to forensic pipeline.
+
+Add:
+
+    - OAuth callback
+    - encrypted refresh-token storage
+    - per-user historyId tracking
+    - Pub/Sub webhook
+    - message deduplication
+    - background queue
+
+
+4.3 Microsoft 365 / Outlook integration
+
+Use Microsoft Graph change notifications.
+
+Resource:
+
+    /users/{user-id}/messages
+
+Fetch raw MIME:
+
+    GET /users/{user-id}/messages/{message-id}/$value
+
+Add:
+
+    - Microsoft OAuth
+    - Graph webhook endpoint
+    - encrypted token storage
+    - delta-token storage
+    - automatic subscription renewal
+    - background scan queue
+
+
+4.4 Chrome extension architecture
+
+Current DOM scraping is not sufficient for reliable forensic analysis.
+
+Replace:
+
+    Gmail page visible -> scrape DOM -> synthetic EML -> scan
+
+with:
+
+    extension authorizes once -> fetch raw email via API
+    -> send raw MIME to TraceMail -> show result
+
+Use:
+
+    chrome.identity.launchWebAuthFlow
+
+Extension responsibilities:
+
+    - scan this email
+    - show risk
+    - show SPF/DKIM/DMARC result
+    - open full report
+    - report false positive
+    - mark sender trusted
+    - show notification for dangerous mail
+
+For periodic extension checks:
+
+    - chrome.alarms every 1-5 minutes
+    - fetch unread/new raw messages
+    - scan automatically
+    - update badge
+
+Server-side Gmail Pub/Sub / Graph webhooks are better than extension polling.
+
+
+4.5 Mail gateway / SIEM integration
+
+For enterprise-grade active scanning:
+
+    mail gateway / Graph notification -> TraceMail scan
+    -> SIEM incident -> Defender/Sentinel indicator
+
+Export IOCs:
+
+    - suspicious sender domain
+    - reply-to domain
+    - punycode domain
+    - suspicious redirect host
+    - link-host IP
+    - sender relay IP
+    - URL hash
+    - forensic evidence hash
+
+
+5. DEVICE-LEVEL INTEGRATION
+---------------------------
+
+A custom Windows agent should be optional, not the main product.
+
+Safer agent design:
+
+    user saves/exports email -> agent detects .eml
+    -> hashes file -> sends to TraceMail -> shows local verdict
+
+If built:
+
+    - package as a Windows service
+    - require admin installation
+    - sign binaries
+    - use mTLS or signed JWT
+    - enforce tenant isolation
+    - audit every action
+    - provide clear uninstallation
+    - do not read unrelated files
+    - do not scrape undocumented Outlook internals
+
+Mailbox API integration is stronger, safer, and more useful.
+
+
+6. SECURITY
+-----------
+
+6.1 Authentication
+
+Add:
+
+    - JWT for users
+    - API keys for machines
+    - per-tenant scopes
+    - hashed token storage
+    - token rotation
+    - revoke tokens endpoint
+    - optional mTLS for high-security mode
+
+Scopes:
+
+    trace:scan
+    trace:read
+    trace:admin
+    trace:webhook
+    trace:integrations:manage
+    trace:indicator:write
+
+
+6.2 Webhook security
+
+For Gmail Pub/Sub and Microsoft Graph:
+
+    - verify provider signatures
+    - validate timestamps
+    - prevent replay
+    - track nonce/event ID
+    - validate HMAC where applicable
+    - optionally require mTLS
+
+
+6.3 Rate limits and quotas
+
+Limit by:
+
+    tenant
+    user
+    mailbox
+    API token
+    IP
+
+Limit:
+
+    scans/minute
+    raw email size
+    attachment count
+    attachment size
+    concurrent GeoIP lookups
+    report generation jobs
+
+
+6.4 Tenant/user isolation
+
+Store:
+
+    tenant_id
+    user_id
+    mailbox_id
+    message_id
+    scan_id
+
+Never let one user read another user's reports or evidence.
+
+
+6.5 Token storage
+
+Never store Gmail/Graph refresh tokens in plain JSON or localStorage.
+
+Use:
+
+    - encrypted database columns
+    - Render secrets
+    - KMS where possible
+    - key rotation
+    - access audit logs
+
+
+6.6 SSRF and private-network protection
+
+Reject:
+
+    127.0.0.0/8
+    10.0.0.0/8
+    172.16.0.0/12
+    192.168.0.0/16
+    169.254.0.0/16
+    ::1
+    fc00::/7
+    fe80::/10
+    metadata endpoints
+    internal-only hostnames
+
+Do not make outbound HTTP requests to email links.
+Keep URL inspection static and safe.
+
+
+6.7 Evidence ledger
+
+Move from local JSONL to an append-only database.
+
+Add:
+
+    - tamper-evident hash chain
+    - HMAC
+    - immutable audit logs
+    - retention policy
+    - deletion policy
+    - signed export
+    - optional external timestamping
+
+Render free-tier local disk is not durable production storage.
+
+
+7. OPTIMIZATION
+---------------
+
+7.1 Backend
+
+    - Replace public GeoIP HTTP calls with local MaxMind GeoLite2.
+    - Cache GeoIP results with TTL.
+    - Move scan pipeline to worker queue.
+    - Add Redis or Postgres/Render Key Value.
+    - Cache DNS, MX, SPF, DKIM, and domain results.
+    - Deduplicate by Message-ID and forensic hash.
+    - Limit concurrent scans.
+    - Add circuit breakers for external providers.
+    - Lazy-load ML models.
+    - Support DETERMINISTIC_ONLY, ML_ENABLED, FULL_AI_ENABLED modes.
+    - Remove unused heavy dependencies.
+
+
+7.2 Frontend
+
+    - Lazy-load Three.js/Globe.gl only when 3D opens.
+    - Use low-resolution textures on mobile.
+    - Pause rendering when offscreen.
+    - Add Lite Mode.
+    - Defer animations during scanning.
+    - Reduce stacked backdrop-filter effects on mobile.
+    - Split templates/index.html into smaller modules.
+
+
+7.3 Reports
+
+Move PDF generation to a background job:
+
+    scan completes -> report job created -> user notified when ready
+
+Do not block the scan response on expensive PDF work.
+
+
+8. USER EXPERIENCE
+------------------
+
+8.1 Change output language
+
+Avoid overclaiming.
+
+Use:
+
+    LOW OBSERVED RISK
+instead of:
+    VERIFIED SAFE
+
+Use:
+    HIGH-RISK INDICATORS DETECTED
+instead of:
+    THREAT DETECTED
+
+Use:
+    Originating mail infrastructure location
+instead of:
+    Sender location
+
+
+8.2 Family mode
+
+Add simple language:
+
+    Is this safe?
+    Should I click this link?
+    Should I call the bank or vendor?
+    Why does this look suspicious?
+
+Hide forensic jargon unless the user opens Advanced Details.
+
+
+8.3 Daily digest
+
+Example:
+
+    TraceMail AI Daily Review
+
+    Scanned: 84
+    High-risk: 1
+    Suspicious: 4
+    Low-risk: 79
+
+    Action needed:
+    - Unknown vendor asked for bank change.
+      Evidence: Reply-To mismatch, new sender, financial request.
+      Recommended action: call vendor using a known number.
+
+
+8.4 Immediate alert only for high-confidence cases
+
+Alert only for:
+
+    credential phishing link
+    bank/payment change request
+    executive impersonation
+    reply-to mismatch + financial request
+    DKIM/SPF failure + lookalike domain
+    dangerous attachment
+
+Everything else goes to the digest.
+
+
+9. RECOMMENDED ROADMAP
+----------------------
+
+Phase 1 — Forensic truth
+
+    1. Real SPF evaluation
+    2. Real DKIM cryptographic verification
+    3. Receiver trust model
+    4. Separate sender/relay/domain/link-host locations
+    5. Model validation metrics
+    6. Safer UI language
+
+Phase 2 — Personal active mailbox mode
+
+    1. Gmail OAuth
+    2. Raw MIME fetch through Gmail API
+    3. Encrypted token storage
+    4. Background scan queue
+    5. Daily digest
+    6. High-risk alerts
+    7. False-positive feedback
+
+Phase 3 — Microsoft 365
+
+    1. Microsoft Graph OAuth
+    2. Change notifications
+    3. Raw MIME fetch
+    4. Same scan pipeline
+
+Phase 4 — Production hardening
+
+    1. PostgreSQL
+    2. User auth
+    3. Tenant isolation
+    4. Signed evidence ledger
+    5. Local GeoIP
+    6. SSRF defense
+    7. Rate limits
+    8. Audit logs
+
+
+FINAL POSITION
+--------------
+
+TraceMail AI can be genuinely useful in the real world, but its strength is not
+"Defender-style endpoint protection". Its strength is:
+
+    automatic raw-email ingestion
+    + independent SPF/DKIM/DMARC verification
+    + relay/domain/link analysis
+    + personal trust graph
+    + calibrated ML advisory signal
+    + explainable reporting
+    + low-false-positive alerts
+
+If those are implemented well, it becomes a credible personal and small-team
+mailbox forensic guardian rather than a demo-only tool.
