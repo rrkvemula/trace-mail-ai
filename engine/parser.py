@@ -125,8 +125,12 @@ class EmailParser:
         Sanitizes raw email text to fix copy-paste anomalies:
         - Strips markdown code fences (```email, ```text, ```)
         - Strips leading blank lines before the headers
-        - Un-indents indented headers (e.g. '    To:', '    Subject:') so RFC 5322 does not fold them
+        - Uses textwrap.dedent to safely remove common block indent without corrupting RFC 5322 folding whitespace
         """
+        if not text:
+            return ""
+
+        import textwrap
         lines = text.splitlines()
         
         # 1. Drop leading markdown code blocks or blank lines
@@ -137,26 +141,9 @@ class EmailParser:
         while lines and (lines[-1].strip().startswith("```") or not lines[-1].strip()):
             lines.pop(-1)
 
-        # 3. Un-indent headers in the header section
-        processed = []
-        in_headers = True
-        header_start_pattern = re.compile(r"^\s*([A-Za-z][A-Za-z0-9\-]*):(\s*.*)$")
-
-        for line in lines:
-            if in_headers:
-                if not line.strip():
-                    in_headers = False
-                    processed.append("")
-                    continue
-                m = header_start_pattern.match(line)
-                if m:
-                    processed.append(f"{m.group(1)}:{m.group(2)}")
-                else:
-                    processed.append(line)
-            else:
-                processed.append(line)
-
-        return "\n".join(processed)
+        # 3. Clean common outer indentation using textwrap.dedent while preserving RFC 5322 folding
+        cleaned_text = "\n".join(lines)
+        return textwrap.dedent(cleaned_text)
 
     def parse(self) -> Dict[str, Any]:
         headers = self._extract_headers()
@@ -179,21 +166,33 @@ class EmailParser:
             "attachments": attachments
         }
 
+    @staticmethod
+    def _safe_header_str(val: Any, default: str = "") -> str:
+        if val is None:
+            return default
+        try:
+            return str(val)
+        except Exception:
+            try:
+                return getattr(val, "name", "") or getattr(val, "local_part", "") or default
+            except Exception:
+                return default
+
     def _extract_headers(self) -> Dict[str, Any]:
         """Extracts standard and authentication headers."""
         return {
-            "from": str(self.msg.get("From", "")),
-            "to": str(self.msg.get("To", "")),
-            "subject": str(self.msg.get("Subject", "(No Subject)")),
-            "date": str(self.msg.get("Date", "")),
-            "message_id": str(self.msg.get("Message-ID", "")),
-            "reply_to": str(self.msg.get("Reply-To", "")),
-            "return_path": str(self.msg.get("Return-Path", "")),
-            "authentication_results": self.msg.get_all("Authentication-Results", []),
-            "received_spf": self.msg.get_all("Received-SPF", []),
-            "dkim_signatures": self.msg.get_all("DKIM-Signature", []),
-            "x_originating_ip": str(self.msg.get("X-Originating-IP", "")),
-            "x_mailer": str(self.msg.get("X-Mailer", ""))
+            "from": self._safe_header_str(self.msg.get("From", "")),
+            "to": self._safe_header_str(self.msg.get("To", "")),
+            "subject": self._safe_header_str(self.msg.get("Subject", "(No Subject)")),
+            "date": self._safe_header_str(self.msg.get("Date", "")),
+            "message_id": self._safe_header_str(self.msg.get("Message-ID", "")),
+            "reply_to": self._safe_header_str(self.msg.get("Reply-To", "")),
+            "return_path": self._safe_header_str(self.msg.get("Return-Path", "")),
+            "authentication_results": self.msg.get_all("Authentication-Results", []) or [],
+            "received_spf": self.msg.get_all("Received-SPF", []) or [],
+            "dkim_signatures": self.msg.get_all("DKIM-Signature", []) or [],
+            "x_originating_ip": self._safe_header_str(self.msg.get("X-Originating-IP", "")),
+            "x_mailer": self._safe_header_str(self.msg.get("X-Mailer", ""))
         }
 
     def _extract_hops(self) -> List[Dict[str, Any]]:

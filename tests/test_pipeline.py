@@ -1,4 +1,5 @@
 import hashlib
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -407,6 +408,38 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(report.get("origin_ip"), "167.89.61.27")
         self.assertIn("Denver", report.get("origin_location", ""))
         self.assertEqual(report.get("origin_geo", {}).get("country"), "United States")
+
+    def test_folded_dkim_headers_with_from_clause(self):
+        """Ensures that RFC 5322 folded continuation lines containing 'from:' do not corrupt the From: header."""
+        eml_text = (
+            "Received: from mta.example.com ([193.35.16.214]) by mx.google.com;\n"
+            "DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;\n"
+            "\td=unstop.news; s=nc2048;\n"
+            "\th=message-id:reply-to:to:\n"
+            "\t from:subject:mime-version:content-type;\n"
+            "\tbh=abc123==;\n"
+            "From: Ananya Bhatt <noreply@unstop.news>\n"
+            "To: recipient@example.com\n"
+            "Subject: Test Folded DKIM\n"
+            "\n"
+            "Hello world"
+        )
+        report = ForensicPipeline.process_raw_email(eml_text)
+        self.assertEqual(report["headers"].get("from"), "Ananya Bhatt <noreply@unstop.news>")
+        self.assertEqual(report["headers"].get("subject"), "Test Folded DKIM")
+        self.assertEqual(report.get("origin_ip"), "193.35.16.214")
+
+    def test_tata_real_world_eml_scan(self):
+        """Verifies parsing of the actual downloaded Tata hiring email without pipeline errors."""
+        tata_path = "/home/rkvemula/Downloads/Final Call_ Tata is Hiring _ Work with the Tata Group.eml"
+        if os.path.exists(tata_path):
+            with open(tata_path, "rb") as f:
+                eml_bytes = f.read()
+            report = ForensicPipeline.process_raw_email(eml_bytes)
+            self.assertEqual(report["headers"].get("from"), "Ananya Bhatt <noreply@unstop.news>")
+            self.assertEqual(report["headers"].get("subject"), "Final Call: Tata is Hiring | Work with the Tata Group")
+            self.assertEqual(report.get("origin_ip"), "193.35.16.214")
+            self.assertEqual(len(report.get("hops_analysis", {}).get("analyzed_hops", [])), 2)
 
 
 if __name__ == "__main__":
