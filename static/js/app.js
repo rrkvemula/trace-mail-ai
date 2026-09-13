@@ -831,12 +831,22 @@ function renderDashboard(data) {
         btnWhitelist.onclick = async () => {
             const sender = data.headers?.from || "";
             const senderDomain = data.forensic_origin?.sender_domain_infrastructure || "";
+            const analyst = getActiveAnalyst();
+            const idToken = await getAnalystIdToken();
+            if (!idToken) {
+                btnWhitelist.disabled = false;
+                btnWhitelist.innerHTML = "<span>❌ Sign in to allowlist</span>";
+                return;
+            }
             btnWhitelist.disabled = true;
             btnWhitelist.innerHTML = "<span>⏳ Adding to allowlist...</span>";
             try {
                 const res = await fetch("/api/feedback", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${idToken}`
+                    },
                     body: JSON.stringify({
                         analysis_id: data.analysis_id || "",
                         sender_email: sender,

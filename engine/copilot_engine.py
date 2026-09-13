@@ -80,7 +80,19 @@ class ForensicCopilot:
         except Exception:
             pass
 
-        # 2. Secondary: Local Ollama Neural Inference (if available)
+        # 2. Secondary: TokenRouter GLM-5.3 Neural Inference (if available)
+        glm_res = cls._try_tokenrouter_glm(user_msg, report, history, preferred_model, rag_data)
+        if glm_res:
+            return {
+                "reply": glm_res,
+                "category": "GLM_NEURAL_INFERENCE",
+                "engine": "z-ai/glm-5.3-free",
+                "citations": rag_data.get("citations", []),
+                "rag_augmented": bool(rag_data.get("citations")),
+                "suggested_prompts": cls._get_contextual_prompts(user_msg, report)
+            }
+
+        # 3. Tertiary: Local Ollama Neural Inference (if available)
         ollama_res = cls._try_ollama(user_msg, report, history, preferred_model, rag_data)
         if ollama_res:
             return {
@@ -92,7 +104,7 @@ class ForensicCopilot:
                 "suggested_prompts": cls._get_contextual_prompts(user_msg, report)
             }
 
-        # 3. Deterministic Forensic Reasoning Engine Fallback with RAG Grounding
+        # 4. Deterministic Forensic Reasoning Engine Fallback with RAG Grounding
         reasoned_reply, category = cls._reason_expert(user_msg, report, history, rag_data)
         return {
             "reply": reasoned_reply,
@@ -102,6 +114,85 @@ class ForensicCopilot:
             "rag_augmented": bool(rag_data.get("citations")),
             "suggested_prompts": cls._get_contextual_prompts(user_msg, report)
         }
+
+    @classmethod
+    def _try_tokenrouter_glm(
+        cls,
+        query: str,
+        report: Optional[Dict[str, Any]],
+        history: Optional[List[Dict[str, str]]],
+        model_name: Optional[str],
+        rag_data: Optional[Dict[str, Any]] = None
+    ) -> Optional[str]:
+        """Attempts to query TokenRouter GLM-5.3 if configured."""
+        import os
+        api_key = os.environ.get("TOKENROUTER_API_KEY", "").strip()
+        if not api_key:
+            return None
+
+        # If user explicitly requested another model not matching glm, skip
+        if model_name and not any(k in model_name.lower() for k in ("glm", "tokenrouter", "default", "auto")):
+            return None
+
+        try:
+            context_summary = "No active report scanned yet."
+            if report:
+                context_summary = json.dumps({
+                    "threat_score": report.get("fraud_score") if report.get("fraud_score") is not None else report.get("threat_analysis", {}).get("threat_score"),
+                    "risk_level": report.get("risk_level") or report.get("threat_analysis", {}).get("risk_category"),
+                    "label": report.get("label"),
+                    "headers": report.get("headers"),
+                    "trace": report.get("trace") or report.get("origin_geo"),
+                    "links_count": len(report.get("links", []) or report.get("body_summary", {}).get("scanned_links", [])),
+                    "reasons": report.get("ai", {}).get("reasons", []) or [f.get("detail") for f in report.get("threat_analysis", {}).get("explainability_factors", []) if isinstance(f, dict)]
+                }, default=str)
+
+            system_text = (
+                "You are TraceMail AI Forensic Copilot (powered by GLM-5.3), an expert cybersecurity engineer "
+                "and RFC 5322 email forensics specialist. You assist SOC analysts in evaluating "
+                "phishing, BEC, spoofing, and malicious headers. Ground your analysis strictly in the provided "
+                "investigation report context. Keep responses concise, professional, and formatted with Markdown bullet points.\n\n"
+                f"ACTIVE EMAIL INVESTIGATION REPORT CONTEXT:\n{context_summary}"
+            )
+
+            if rag_data and rag_data.get("augmented_context"):
+                system_text += f"\n\n{rag_data['augmented_context']}"
+
+            messages = [{"role": "system", "content": system_text}]
+            if history:
+                for h in history[-4:]:
+                    if h.get("role") in ("user", "assistant") and h.get("content"):
+                        messages.append({"role": h["role"], "content": h["content"]})
+            messages.append({"role": "user", "content": query})
+
+            target_model = model_name if (model_name and "glm" in model_name.lower()) else "z-ai/glm-5.3-free"
+            payload = json.dumps({
+                "model": target_model,
+                "messages": messages,
+                "temperature": 0.2,
+                "max_tokens": 1000
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                "https://api.tokenrouter.com/v1/chat/completions",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "User-Agent": "TraceMail-Copilot/2.1"
+                },
+                method="POST"
+            )
+
+            with urllib.request.urlopen(req, timeout=cls.OLLAMA_TIMEOUT + 2.0) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                    if content:
+                        return content
+        except Exception:
+            pass
+        return None
 
     @classmethod
     def _try_ollama(

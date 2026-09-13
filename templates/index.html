@@ -1177,6 +1177,18 @@
       return null;
     }
 
+    async function getAnalystIdToken() {
+      try {
+        if (typeof firebase === 'undefined' || !firebase.auth) return null;
+        const user = firebase.auth().currentUser;
+        if (!user) return null;
+        return await user.getIdToken(true);
+      } catch (e) {
+        console.warn('Could not obtain analyst ID token:', e);
+        return null;
+      }
+    }
+
     function syncAnalystAuthState() {
       const analyst = getActiveAnalyst();
       const badge = document.getElementById('analystNavBadge');

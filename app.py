@@ -13,6 +13,7 @@ import time
 import logging
 import threading
 import uuid
+import secrets
 from collections import OrderedDict, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +30,16 @@ from starlette.concurrency import run_in_threadpool
 logger = logging.getLogger("tracemail.api")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
+try:
+    from firebase_admin import auth as firebase_auth, credentials, initialize_app, get_apps
+    FIREBASE_ADMIN_AVAILABLE = True
+except ImportError:
+    firebase_auth = None
+    credentials = None
+    initialize_app = None
+    get_apps = None
+    FIREBASE_ADMIN_AVAILABLE = False
+
 from engine.pipeline import ForensicPipeline
 from engine.evidence_generator import EvidenceGenerator
 from engine.evidence_ledger import EvidenceLedger
@@ -41,6 +52,9 @@ STATIC_DIR = os.path.join(BASE_DIR, "static")
 SAMPLES_DIR = os.path.join(BASE_DIR, "sample_emails")
 REPORTS_DIR = os.path.join(BASE_DIR, "reports")
 DATA_DIR = os.path.join(BASE_DIR, "data")
+FEEDBACK_STORE_PATH = os.environ.get(
+    "TRACEMAIL_FEEDBACK_STORE", os.path.join(DATA_DIR, "user_feedback.jsonl")
+)
 
 os.makedirs(REPORTS_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -91,27 +105,162 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-Memory Sliding-Window Rate Limiter
-RATE_LIMIT_WINDOW = 60  # 1 minute window
-RATE_LIMIT_MAX = 60     # max 60 requests per minute per IP
-RATE_LIMIT_TRACKER = defaultdict(list)
-RATE_LIMIT_LOCK = threading.Lock()
+# In-Memory Sliding-Window Bounded Rate Limiter with TTL Pruning
+class BoundedRateLimiter:
+    """
+    Thread-safe sliding-window rate limiter with automatic TTL pruning,
+    periodic expiration cleanup, and LRU bounding to prevent memory exhaustion.
+    """
+    def __init__(
+        self,
+        window_seconds: int = 60,
+        max_requests: int = 60,
+        max_tracked_ips: int = 10000,
+        cleanup_interval: int = 60,
+    ):
+        self.window_seconds = window_seconds
+        self.max_requests = max_requests
+        self.max_tracked_ips = max_tracked_ips
+        self.cleanup_interval = cleanup_interval
+        self._tracker: OrderedDict[str, list[float]] = OrderedDict()
+        self._lock = threading.Lock()
+        self._last_cleanup = time.time()
+
+    def check(self, client_ip: str) -> bool:
+        now = time.time()
+        with self._lock:
+            # 1. Periodic TTL pruning of stale IP histories or watermark trigger
+            if (now - self._last_cleanup >= self.cleanup_interval) or (len(self._tracker) >= self.max_tracked_ips):
+                self._prune_stale(now)
+
+            # 2. Filter client history within sliding window
+            history = self._tracker.get(client_ip, [])
+            valid_history = [t for t in history if now - t < self.window_seconds]
+
+            # 3. Check rate limit threshold
+            if len(valid_history) >= self.max_requests:
+                self._tracker[client_ip] = valid_history
+                self._tracker.move_to_end(client_ip)
+                while len(self._tracker) > self.max_tracked_ips:
+                    self._tracker.popitem(last=False)
+                return False
+
+            # 4. Record new request
+            valid_history.append(now)
+            self._tracker[client_ip] = valid_history
+            self._tracker.move_to_end(client_ip)
+
+            # 5. Enforce strict LRU bounding if exceeding capacity
+            while len(self._tracker) > self.max_tracked_ips:
+                self._tracker.popitem(last=False)
+
+            return True
+
+    def _prune_stale(self, now: float) -> None:
+        self._last_cleanup = now
+        stale_cutoff = now - self.window_seconds
+        stale_keys = [
+            ip for ip, timestamps in self._tracker.items()
+            if not timestamps or timestamps[-1] < stale_cutoff
+        ]
+        for ip in stale_keys:
+            del self._tracker[ip]
+
+    def reset(self) -> None:
+        with self._lock:
+            self._tracker.clear()
+            self._last_cleanup = time.time()
+
+    def tracked_count(self) -> int:
+        with self._lock:
+            return len(self._tracker)
+
+
+RATE_LIMIT_WINDOW = 60
+RATE_LIMIT_MAX = 60
+MAX_TRACKED_IPS = 10000
+RATE_LIMITER = BoundedRateLimiter(
+    window_seconds=RATE_LIMIT_WINDOW,
+    max_requests=RATE_LIMIT_MAX,
+    max_tracked_ips=MAX_TRACKED_IPS,
+    cleanup_interval=60,
+)
+
 
 def check_client_rate_limit(client_ip: str) -> bool:
-    now = time.time()
-    with RATE_LIMIT_LOCK:
-        history = RATE_LIMIT_TRACKER[client_ip]
-        RATE_LIMIT_TRACKER[client_ip] = [t for t in history if now - t < RATE_LIMIT_WINDOW]
-        if len(RATE_LIMIT_TRACKER[client_ip]) >= RATE_LIMIT_MAX:
-            return False
-        RATE_LIMIT_TRACKER[client_ip].append(now)
-        return True
+    return RATE_LIMITER.check(client_ip)
+
+
+
+def initialize_firebase_admin() -> None:
+    """Initializes Firebase Admin once when a service-account credential is present."""
+    if not FIREBASE_ADMIN_AVAILABLE or get_apps():
+        return
+    credential_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+    credential_path = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH")
+    try:
+        if credential_json:
+            initialize_app(credentials.Certificate(json.loads(credential_json)))
+        elif credential_path:
+            with open(credential_path, "r", encoding="utf-8") as handle:
+                initialize_app(credentials.Certificate(json.load(handle)))
+    except Exception as ex:
+        logger.warning("Firebase Admin initialization failed; bearer tokens cannot be verified: %s", ex)
+
+
+def verify_firebase_bearer_token(request: Request) -> Dict[str, Any]:
+    """
+    Verifies a Firebase ID token produced by the signed-in web analyst.
+    Demo/local emergency access requires an explicit server-side secret.
+    Client-side localStorage is never treated as authentication.
+    """
+    initialize_firebase_admin()
+    authorization = request.headers.get("Authorization", "")
+    scheme, separator, token = authorization.partition(" ")
+    if not separator or scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(status_code=401, detail="Authentication required. Provide a Firebase Bearer token.")
+
+    if FIREBASE_ADMIN_AVAILABLE and firebase_auth is not None:
+        try:
+            decoded = firebase_auth.verify_id_token(token, check_revoked=True)
+            if not decoded.get("uid"):
+                raise ValueError("Token has no uid")
+            return decoded
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid or expired analyst authentication token.")
+
+    local_key = os.environ.get("TRACEMAIL_LOCAL_ANALYST_KEY", "")
+    if not local_key:
+        raise HTTPException(status_code=503, detail="Feedback authentication is not configured on this deployment.")
+    if not secrets.compare_digest(token, local_key):
+        raise HTTPException(status_code=401, detail="Invalid or expired analyst authentication token.")
+    return {"uid": "local-bearer-analyst", "email": "local-analyst@tracemail.local"}
+
+
+def get_client_ip(request: Request) -> str:
+    """
+    Extracts client IP from proxy headers (Cloudflare, reverse proxies)
+    falling back to peer socket host.
+    """
+    cf_ip = request.headers.get("cf-connecting-ip")
+    if cf_ip and cf_ip.strip():
+        return cf_ip.strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip and real_ip.strip():
+        return real_ip.strip()
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded and forwarded.strip():
+        return forwarded.split(",")[0].strip()
+    if request.client and request.client.host:
+        return request.client.host
+    return "127.0.0.1"
+
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     # Enforce rate limiting on computational pipeline routes
-    client_ip = request.client.host if request.client else "127.0.0.1"
-    if request.url.path.startswith(("/scan", "/api/analyze", "/api/copilot")):
+    client_ip = get_client_ip(request)
+    if request.url.path.startswith(("/scan", "/api/analyze", "/api/copilot", "/api/forensics")):
         if not check_client_rate_limit(client_ip):
             return JSONResponse(
                 status_code=429,
@@ -125,12 +274,34 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com https://www.gstatic.com https://apis.google.com https://*.google.com; "
-        "connect-src 'self' https: http://localhost:8899 http://127.0.0.1:8899 wss:; "
-        "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://content.googleapis.com https://*.google.com;"
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com https://www.gstatic.com https://apis.google.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://unpkg.com; "
+        "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; "
+        "img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://unpkg.com https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org; "
+        "connect-src 'self' http://localhost:8899 http://127.0.0.1:8899 https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://*.firebasestorage.app https://unpkg.com https://cdnjs.cloudflare.com; "
+        "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://content.googleapis.com; "
+        "object-src 'none'; "
+        "base-uri 'self';"
     )
     return response
+
+
+@app.middleware("http")
+async def bind_user_allowlist(request: Request, call_next):
+    """Binds only the verified analyst's own allowlist to this request."""
+    request.state.user_allowlist = set()
+    request.state.analyst_uid = None
+    if request.url.path.startswith(("/scan", "/api/analyze")):
+        try:
+            claims = verify_firebase_bearer_token(request)
+        except HTTPException as ex:
+            if ex.status_code not in (401, 503):
+                raise
+        else:
+            request.state.analyst_uid = claims.get("uid")
+            request.state.user_allowlist = FEEDBACK_STORE.allowlist_for(claims.get("uid", ""))
+    return await call_next(request)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -138,6 +309,13 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 class ExportRequest(BaseModel):
     analysis_id: str
+
+
+class AIAnalystRequest(BaseModel):
+    analysis_id: Optional[str] = None
+    report: Optional[Dict[str, Any]] = None
+    focus: Optional[str] = "full"
+    force_deterministic: Optional[bool] = False
 
 
 class ChatRequest(BaseModel):
@@ -156,6 +334,14 @@ class FeedbackRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class FeedbackResponse(BaseModel):
+    status: str
+    feedback_type: str
+    target: str
+    scoped_to: str
+    message: str
+
+
 FREE_CONSUMER_PROVIDERS = {
     "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "outlook.com",
     "hotmail.com", "live.com", "msn.com", "aol.com", "proton.me", "protonmail.com",
@@ -163,30 +349,68 @@ FREE_CONSUMER_PROVIDERS = {
 }
 
 
-def load_allowlist_from_disk() -> set:
-    """Loads analyst allowlist rules persisted to disk across deployments."""
-    allowlist = set()
-    feedback_path = os.path.join(DATA_DIR, "user_feedback.jsonl")
-    if os.path.exists(feedback_path):
+class FeedbackStore:
+    """Append-only, user-scoped feedback and allowlist persistence."""
+
+    def __init__(self, path: str):
+        self.path = path
+        self.lock = threading.Lock()
+
+    def _validate(self, entry: Dict[str, Any]) -> bool:
+        owner = str(entry.get("owner_uid", "")).strip()
+        feedback_type = str(entry.get("feedback_type", "")).strip().upper()
+        sender = str(entry.get("sender_email", "")).strip().lower()
+        domain = str(entry.get("sender_domain", "")).strip().lower()
+        email_ok = not sender or re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", sender)
+        domain_ok = not domain or re.match(r"^[a-z0-9](?:[a-z0-9-]{0,62}\.)+[a-z]{2,}$", domain)
+        return bool(owner and feedback_type and (sender or domain) and email_ok and domain_ok)
+
+    def append(self, entry: Dict[str, Any]) -> bool:
+        if not self._validate(entry):
+            return False
+        safe_entry = dict(entry)
+        with self.lock:
+            try:
+                os.makedirs(os.path.dirname(self.path), exist_ok=True)
+                with open(self.path, "a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(safe_entry, separators=(",", ":")) + "\n")
+                return True
+            except Exception as ex:
+                logger.warning("Could not persist feedback to durable store: %s", ex)
+                return False
+
+    def allowlist_for(self, owner_uid: str) -> set:
+        owner_uid = str(owner_uid).strip()
+        allowlist = set()
+        if not owner_uid:
+            return allowlist
         try:
-            with open(feedback_path, "r", encoding="utf-8") as f:
-                for line in f:
+            with open(self.path, "r", encoding="utf-8") as handle:
+                for line in handle:
                     if not line.strip():
                         continue
-                    entry = json.loads(line)
-                    if entry.get("feedback_type") == "ALLOWLIST_SENDER":
-                        sender = (entry.get("sender_email") or "").strip().lower()
-                        dom = (entry.get("sender_domain") or "").strip().lower()
-                        if sender:
-                            allowlist.add(sender)
-                        if dom and dom not in FREE_CONSUMER_PROVIDERS:
-                            allowlist.add(dom)
-        except Exception:
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if entry.get("feedback_type") != "ALLOWLIST_SENDER" or entry.get("owner_uid") != owner_uid:
+                        continue
+                    sender = str(entry.get("sender_email", "")).strip().lower()
+                    domain = str(entry.get("sender_domain", "")).strip().lower()
+                    if sender and re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", sender):
+                        allowlist.add(sender)
+                    if domain and domain not in FREE_CONSUMER_PROVIDERS and re.match(
+                        r"^[a-z0-9](?:[a-z0-9-]{0,62}\.)+[a-z]{2,}$", domain
+                    ):
+                        allowlist.add(domain)
+        except FileNotFoundError:
             pass
-    return allowlist
+        except Exception as ex:
+            logger.warning("Could not read durable allowlist store: %s", ex)
+        return allowlist
 
 
-USER_ALLOWLIST: set = load_allowlist_from_disk()
+FEEDBACK_STORE = FeedbackStore(FEEDBACK_STORE_PATH)
 
 
 def remember_analysis(report: dict) -> None:
@@ -450,6 +674,8 @@ def build_ui_compatible_payload(report: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     return {
+        "analysis_id": report.get("analysis_id"),
+        "forensic_hash": report.get("forensic_hash"),
         "fraud_score": threat_score,
         "risk_level": risk_level,
         "label": label,
@@ -611,7 +837,8 @@ async def scan(
 
     try:
         # Run through single source of truth: ForensicPipeline (offloaded to threadpool to prevent event-loop starvation)
-        report = await run_in_threadpool(ForensicPipeline.process_raw_email, content, USER_ALLOWLIST)
+        analyst_allowlist = getattr(request.state, "user_allowlist", set())
+        report = await run_in_threadpool(ForensicPipeline.process_raw_email, content, analyst_allowlist)
         analysis_id = f"ANL-{uuid.uuid4().hex[:12].upper()}"
         report["analysis_id"] = analysis_id
         analyst_name = request.headers.get("X-Analyst-Identity", "Anonymous SOC Analyst")
@@ -645,6 +872,7 @@ async def scan(
 
 @app.post("/api/analyze")
 async def analyze_email(
+    request: Request,
     file: Optional[UploadFile] = File(None),
     raw_text: Optional[str] = Form(None),
     source_name: Optional[str] = Form(None),
@@ -670,7 +898,8 @@ async def analyze_email(
         raise HTTPException(status_code=413, detail="Email exceeds the 5 MB prototype limit")
 
     try:
-        report = await run_in_threadpool(ForensicPipeline.process_raw_email, content, USER_ALLOWLIST)
+        analyst_allowlist = getattr(request.state, "user_allowlist", set())
+        report = await run_in_threadpool(ForensicPipeline.process_raw_email, content, analyst_allowlist)
         report["analysis_id"] = f"ANL-{uuid.uuid4().hex[:12].upper()}"
         report["input_metadata"] = {
             "filename": filename,
@@ -770,53 +999,93 @@ async def copilot_chat(payload: ChatRequest):
     return response
 
 
-@app.post("/api/feedback")
-async def record_user_feedback(req: FeedbackRequest):
+@app.post("/api/forensics/ai-analyst")
+@app.post("/api/copilot/ai-analyst")
+def forensic_ai_analyst(payload: AIAnalystRequest):
     """
-    Stores analyst feedback (e.g. false positives, allowlisted senders, reported threats).
-    Adheres to continuous active triage tuning and scoped allowlist principles.
+    Forensic AI Analyst endpoint powered by GLM-5.3 via TokenRouter.
+    Synthesizes explainable threat risk narratives, actionable SOC triage advice,
+    and MITRE ATT&CK/D3FEND matrix mappings strictly grounded in the deterministic
+    evidence ledger. Falls back gracefully to deterministic expert synthesis if
+    the external API is rate-limited (HTTP 429), unavailable, or offline.
     """
-    FREE_CONSUMER_PROVIDERS = {
-        "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "outlook.com",
-        "hotmail.com", "live.com", "msn.com", "aol.com", "proton.me", "protonmail.com",
-        "icloud.com", "me.com", "mac.com", "zoho.com", "mail.com"
-    }
+    report = payload.report
+    if not report and payload.analysis_id:
+        report = ANALYSIS_CACHE.get(payload.analysis_id)
+        if not report:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Analysis report '{payload.analysis_id}' not found or expired from cache."
+            )
 
+    # Fallback to the latest analysis in cache only if neither report nor analysis_id was supplied
+    if not report and not payload.analysis_id and ANALYSIS_CACHE:
+        try:
+            latest_id = list(ANALYSIS_CACHE.keys())[-1]
+            report = ANALYSIS_CACHE[latest_id]
+        except Exception:
+            pass
+
+    if not report:
+        raise HTTPException(
+            status_code=400,
+            detail="No forensic report provided or found in cache to analyze."
+        )
+
+    from engine.glm_analyst import GLMForensicAnalyst
+    return GLMForensicAnalyst.synthesize_triage(
+        report=report,
+        focus=payload.focus or "full",
+        force_deterministic=payload.force_deterministic or False
+    )
+
+
+@app.post("/api/feedback")
+async def record_user_feedback(request: Request, req: FeedbackRequest):
+    """
+    Stores authenticated, user-scoped analyst feedback (false positives, allowlisted senders,
+    reported threats). Allowlist entries affect only the authenticated analyst's future scans.
+    """
+    claims = verify_firebase_bearer_token(request)
+    analyst_uid = str(claims.get("uid", ""))
+    if not analyst_uid:
+        raise HTTPException(status_code=401, detail="Authenticated analyst identifier missing.")
+
+    feedback_type = req.feedback_type.strip().upper()
     sender = (req.sender_email or "").strip().lower()
     domain = (req.sender_domain or "").strip().lower()
-    target_desc = sender or domain or "Not specified"
 
-    if req.feedback_type == "ALLOWLIST_SENDER":
-        if sender:
-            USER_ALLOWLIST.add(sender)
-        # Protect against allowlisting shared consumer domains (e.g. all of @gmail.com)
-        if domain and domain not in FREE_CONSUMER_PROVIDERS:
-            USER_ALLOWLIST.add(domain)
-            target_desc = f"Domain '@{domain}' and sender '{sender}'"
-        elif sender:
-            target_desc = f"Exact sender '{sender}' (shared provider '{domain}' cannot be globally allowlisted)"
+    valid_email = re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", sender)
+    valid_domain = re.match(r"^[a-z0-9](?:[a-z0-9-]{0,62}\.)+[a-z]{2,}$", domain)
+    if not valid_email and not valid_domain:
+        raise HTTPException(status_code=400, detail="Provide a valid sender email or sender domain.")
+
+    target_desc = sender or f"@{domain}"
+    if feedback_type == "ALLOWLIST_SENDER" and domain and domain in FREE_CONSUMER_PROVIDERS:
+        target_desc = f"Exact sender '{sender}' (shared provider '@{domain}' cannot be domain-allowlisted)"
 
     feedback_entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "owner_uid": analyst_uid,
         "analysis_id": req.analysis_id,
         "sender_email": sender,
         "sender_domain": domain,
-        "feedback_type": req.feedback_type,
+        "feedback_type": feedback_type,
         "notes": req.notes
     }
-    feedback_path = os.path.join(DATA_DIR, "user_feedback.jsonl")
-    try:
-        with open(feedback_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(feedback_entry) + "\n")
-    except Exception as ex:
-        logger.warning(f"Could not persist feedback to ledger: {ex}")
+    if not FEEDBACK_STORE.append(feedback_entry):
+        raise HTTPException(status_code=500, detail="Feedback could not be persisted to the durable store.")
 
-    return {
-        "status": "RECORDED",
-        "feedback_type": req.feedback_type,
-        "target": target_desc,
-        "message": f"Feedback '{req.feedback_type}' logged successfully. Sender will be prioritized in your triage allowlist."
-    }
+    return FeedbackResponse(
+        status="RECORDED",
+        feedback_type=feedback_type,
+        target=target_desc,
+        scoped_to=analyst_uid,
+        message=(
+            f"Feedback '{feedback_type}' recorded for this analyst. "
+            "Allowlist rules are user-scoped and never suppress weaponized payloads."
+        )
+    )
 
 
 if __name__ == "__main__":

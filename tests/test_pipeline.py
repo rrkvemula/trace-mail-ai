@@ -181,7 +181,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(empty_res["category"], "GREETING")
 
         # 2. Test deterministic reasoning engine fallback under unit isolation
-        with patch.object(ForensicCopilot, "_try_ollama", return_value=None), \
+        with patch.object(ForensicCopilot, "_try_tokenrouter_glm", return_value=None), \
+             patch.object(ForensicCopilot, "_try_ollama", return_value=None), \
              patch("argus_x.analyst.ArgusAnalyst.query", side_effect=Exception("offline")):
             standby_res = ForensicCopilot.query("Hello")
             self.assertEqual(standby_res["category"], "STANDBY")
@@ -220,9 +221,10 @@ class PipelineTests(unittest.TestCase):
     def test_argus_x_native_analyst_integration(self):
         from engine.copilot_engine import ForensicCopilot
         # Verify ARGUS-X air-gapped forensic engine delivers triage when available
-        res = ForensicCopilot.query("Hello")
-        self.assertIn(res["engine"], ["argus_x_native", "deterministic", "trace_mail_neural_rules"])
-        self.assertIn("reply", res)
+        with patch.object(ForensicCopilot, "_try_tokenrouter_glm", return_value=None):
+            res = ForensicCopilot.query("Hello")
+            self.assertIn(res["engine"], ["argus_x_native", "deterministic", "trace_mail_neural_rules"])
+            self.assertIn("reply", res)
 
 
     def test_evidence_generator_handles_special_xml_characters(self):
@@ -370,10 +372,11 @@ class PipelineTests(unittest.TestCase):
             "ai": {"bec_type": "wire fraud", "reasons": ["REPLY_TO_DOMAIN_MISMATCH"]},
             "trace": {"geo": {"ip": "198.98.56.12", "city": "Dallas", "country": "US"}}
         }
-        res = ForensicCopilot.query("What does CISA playbook say about wire fraud?", sample_report)
-        self.assertTrue(res.get("rag_augmented"))
-        self.assertGreaterEqual(len(res.get("citations", [])), 1)
-        self.assertIn("SWIFT", res["reply"])
+        with patch.object(ForensicCopilot, "_try_tokenrouter_glm", return_value=None):
+            res = ForensicCopilot.query("What does CISA playbook say about wire fraud?", sample_report)
+            self.assertTrue(res.get("rag_augmented"))
+            self.assertGreaterEqual(len(res.get("citations", [])), 1)
+            self.assertIn("SWIFT", res["reply"])
 
     def test_mobile_pdf_email_extraction_and_domain_geolocation(self):
         from reportlab.pdfgen import canvas

@@ -17,6 +17,8 @@ COPY . .
 
 # Create reports and data directories
 RUN mkdir -p reports data
+ENV TRACEMAIL_FEEDBACK_STORE=/var/data/tracemail/user_feedback.jsonl
+RUN mkdir -p /var/data/tracemail && chown -R 1000:1000 /var/data/tracemail
 
 # Default environment for container (HF Spaces and cloud hosts)
 ENV HOST=0.0.0.0
