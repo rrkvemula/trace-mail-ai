@@ -25,6 +25,34 @@ class ThreatScorer:
         "fund transfer", "payment diversion", "credentials expired", "password reset"
     ]
 
+    # Extortion, sextortion, and blackmail threat indicators
+    EXTORTION_THREAT_PHRASES = [
+        "i have your private", "i hacked your", "i recorded you",
+        "i have access to your", "i installed a trojan", "i placed a malware",
+        "i know your password", "i have compromising", "your dirty secret",
+        "i captured you", "webcam footage", "intimate video", "intimate moment",
+        "embarrassing video", "embarrassing material", "shameful activity",
+        "expose you", "expose your", "leak your", "leak this to",
+        "share with your contacts", "send to your contacts", "send to all your",
+        "share this with everyone", "all your friends will see",
+        "your reputation will be destroyed", "your life will be ruined",
+        "sensitive information about you", "sensitive data about you",
+        "i have evidence against you", "i have proof of your",
+        "data breach.*your account", "your data has been compromised",
+        "we have encrypted your files", "your files have been encrypted",
+        "pay the ransom", "decryption key", "decrypt your files",
+    ]
+
+    EXTORTION_DEMAND_KEYWORDS = [
+        "bitcoin", "btc", "cryptocurrency", "crypto wallet", "monero", "xmr",
+        "ethereum", "eth", "usdt", "tether", "litecoin",
+        "wallet address", "send.*to this address", "transfer.*within",
+        "you have.*hours", "you have.*days", "deadline",
+        "countdown", "timer", "clock is ticking",
+        "or else", "otherwise i will", "if you don't pay", "if you refuse",
+        "consequences will be", "no negotiation",
+    ]
+
     FREE_PROVIDERS = {"gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "aol.com", "protonmail.com"}
 
     # Independent authentic forensic evidence classes (Excludes advisory ML and generic keywords)
@@ -34,6 +62,7 @@ class ThreatScorer:
         "INFRA_URL": {"SSRF_INTERNAL_TARGET", "PUNYCODE_LOOKALIKE", "IP_LITERAL_URL", "SUSPICIOUS_URL", "HOMOGLYPH_BRAND_IMPERSONATION", "MIXED_SCRIPT_HOMOGLYPH", "LINK_TARGET_MISMATCH", "INVISIBLE_CHAR_OBFUSCATION"},
         "PAYLOAD_SECURITY": {"WEAPONIZED_ATTACHMENT", "DOUBLE_EXTENSION_DECEPTION", "MIME_EXTENSION_MISMATCH"},
         "BEC_FINANCIAL_FRAUD": {"BEC_VENDOR_FINANCIAL_DIVERSION", "BEC_VERIFICATION_EVASION"},
+        "EXTORTION_THREAT": {"EXTORTION_BLACKMAIL", "SEXTORTION", "RANSOMWARE_THREAT"},
     }
 
     def __init__(
@@ -67,6 +96,7 @@ class ThreatScorer:
         self._score_display_spoofing()
         self._score_reply_to_and_bec()
         self._score_links_and_attachments()
+        self._score_extortion_and_blackmail()
 
         # Invariant Protection: If the message exhibits severe BEC financial diversion,
         # impersonation, dangerous links, or crypto tampering, do NOT allow reported auth passes to suppress risk.
@@ -82,7 +112,10 @@ class ThreatScorer:
             "LINK_TARGET_MISMATCH",
             "WEAPONIZED_ATTACHMENT",
             "FORGED_OR_UNTRUSTED_AUTHSERV",
-            "RECEIVER_PASS_CRYPTO_MISMATCH"
+            "RECEIVER_PASS_CRYPTO_MISMATCH",
+            "SEXTORTION",
+            "EXTORTION_BLACKMAIL",
+            "RANSOMWARE_THREAT"
         ])
 
         self._score_linguistic_urgency(crypto_authenticated=auth_discount_eligible)
@@ -118,9 +151,12 @@ class ThreatScorer:
         final_conf = max(10.0, min(99.0, round(self.confidence, 0)))
 
         # 6. Policy Gate: High-risk categorization requires >=2 independent evidence classes,
-        # or a direct critical payload execution threat (WEAPONIZED_ATTACHMENT or SSRF_INTERNAL_TARGET).
+        # or a direct critical payload execution threat (WEAPONIZED_ATTACHMENT, SSRF_INTERNAL_TARGET, or EXTORTION).
         # Prevents high-risk false-positive quarantine from isolated heuristics or text ML alone.
-        has_critical_payload = any(d in self.detections for d in ["WEAPONIZED_ATTACHMENT", "SSRF_INTERNAL_TARGET"])
+        has_critical_payload = any(d in self.detections for d in [
+            "WEAPONIZED_ATTACHMENT", "SSRF_INTERNAL_TARGET",
+            "SEXTORTION", "EXTORTION_BLACKMAIL", "RANSOMWARE_THREAT"
+        ])
         if final_score >= 70.0 and len(active_hard_classes) < 2 and not has_critical_payload:
             final_score = min(final_score, 65.0)
             self.factors.append({
@@ -136,18 +172,23 @@ class ThreatScorer:
 
         # 7. Determine Risk Category and Enforcement Policy
         is_bec_diversion = "BEC_VENDOR_FINANCIAL_DIVERSION" in self.detections
+        is_extortion = any(d in self.detections for d in ["SEXTORTION", "EXTORTION_BLACKMAIL", "RANSOMWARE_THREAT"])
         if final_score >= 70.0:
             category = "HIGH_RISK"
             color = "#F87171"  # Red
-            if is_bec_diversion:
+            if is_extortion:
+                verdict = "CRITICAL EXTORTION / BLACKMAIL THREAT — LAW ENFORCEMENT ESCALATION"
+            elif is_bec_diversion:
                 verdict = "CRITICAL BEC DIVERSION — OUT-OF-BAND VERIFICATION REQUIRED"
             else:
                 verdict = "HIGH RISK — ANALYST REVIEW REQUIRED"
             enforcement = "QUARANTINE_RECOMMENDED" if final_conf >= 70 else "WARN_REVIEW"
-        elif final_score >= 35.0 or is_bec_diversion:
+        elif final_score >= 35.0 or is_bec_diversion or is_extortion:
             category = "SUSPICIOUS"
             color = "#FFD166"
-            if is_bec_diversion:
+            if is_extortion:
+                verdict = "ELEVATED EXTORTION RISK — DO NOT PAY OR ENGAGE"
+            elif is_bec_diversion:
                 verdict = "ELEVATED BEC RISK — OUT-OF-BAND VERIFICATION REQUIRED"
             else:
                 verdict = "ELEVATED RISK — REVIEW RECOMMENDED"
@@ -184,7 +225,8 @@ class ThreatScorer:
                     })
 
         has_critical_payload = any(d in self.detections for d in [
-            "WEAPONIZED_ATTACHMENT", "DOUBLE_EXTENSION_DECEPTION", "MIME_EXTENSION_MISMATCH", "SSRF_INTERNAL_TARGET"
+            "WEAPONIZED_ATTACHMENT", "DOUBLE_EXTENSION_DECEPTION", "MIME_EXTENSION_MISMATCH",
+            "SSRF_INTERNAL_TARGET", "SEXTORTION", "EXTORTION_BLACKMAIL", "RANSOMWARE_THREAT"
         ])
 
         if is_allowlisted:
@@ -603,4 +645,143 @@ class ThreatScorer:
             "impact": f"+{weight:.0f} pts",
             "severity": "LOW" if crypto_authenticated else "MEDIUM",
             "detail": detail
+        })
+
+    def _score_extortion_and_blackmail(self):
+        """
+        Detects extortion, sextortion, and ransomware threat emails.
+
+        These are emails where an attacker claims to possess sensitive/private data
+        about the victim (webcam footage, passwords, browsing history, company files)
+        and demands cryptocurrency payment to prevent exposure/leaking.
+
+        Three sub-categories:
+        - SEXTORTION: Claims of intimate recordings, webcam access, browsing history
+        - EXTORTION_BLACKMAIL: Generic threats to expose data, reputation damage
+        - RANSOMWARE_THREAT: Claims of file encryption, demands decryption payment
+
+        Extortion signals are NEVER suppressed by authentication passes because
+        even a legitimately-authenticated mailbox can be used to send threats
+        (compromised account / ATO scenario).
+        """
+        subject = self.parsed.get("headers", {}).get("subject", "").lower()
+        body = self.parsed.get("body", {}).get("plain_text", "").lower()
+        combined = subject + " " + body
+
+        if not combined.strip():
+            return
+
+        # ── Phase 1: Detect threat phrases ──
+        matched_threats = []
+        for phrase in self.EXTORTION_THREAT_PHRASES:
+            if re.search(re.escape(phrase).replace(r'\.\*', '.*'), combined):
+                matched_threats.append(phrase)
+
+        # ── Phase 2: Detect payment/crypto demand indicators ──
+        matched_demands = []
+        for kw in self.EXTORTION_DEMAND_KEYWORDS:
+            if re.search(re.escape(kw).replace(r'\.\*', '.*'), combined):
+                matched_demands.append(kw)
+
+        # ── Phase 3: Detect cryptocurrency wallet addresses ──
+        # Bitcoin addresses: 1xxx, 3xxx, or bc1xxx (26-62 chars)
+        btc_pattern = re.compile(r'\b(?:bc1[a-zA-HJ-NP-Z0-9]{25,39}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\b')
+        # Monero addresses: 4xxx or 8xxx (95 chars)
+        xmr_pattern = re.compile(r'\b[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}\b')
+        # Ethereum addresses: 0x followed by 40 hex chars
+        eth_pattern = re.compile(r'\b0x[a-fA-F0-9]{40}\b')
+
+        found_wallets = []
+        for pat, name in [(btc_pattern, "Bitcoin"), (xmr_pattern, "Monero"), (eth_pattern, "Ethereum")]:
+            m = pat.search(combined)
+            if m:
+                found_wallets.append({"type": name, "address": m.group(0)[:20] + "..."})
+
+        if found_wallets:
+            matched_demands.append(f"crypto wallet address ({found_wallets[0]['type']})")
+
+        # ── Phase 4: Classification & Scoring ──
+        if not matched_threats and not matched_demands:
+            return
+
+        # Need at least one threat phrase to classify as extortion
+        # (crypto keywords alone could be legitimate financial discussion)
+        if not matched_threats:
+            return
+
+        # Determine sub-category
+        sextortion_indicators = [
+            "webcam", "intimate", "recorded you", "captured you",
+            "embarrassing", "shameful", "dirty secret", "private video"
+        ]
+        ransomware_indicators = [
+            "encrypted your files", "decryption key", "decrypt your",
+            "pay the ransom", "files have been encrypted"
+        ]
+
+        is_sextortion = any(ind in combined for ind in sextortion_indicators)
+        is_ransomware = any(ind in combined for ind in ransomware_indicators)
+
+        # Score based on severity
+        if is_sextortion:
+            detection_type = "SEXTORTION"
+            weight = 55.0
+            category_label = "Sextortion"
+            severity_detail = (
+                f"Sextortion threat detected: Email claims to possess intimate recordings or private material "
+                f"about the recipient. Matched threat phrases: {', '.join(matched_threats[:3])}."
+            )
+        elif is_ransomware:
+            detection_type = "RANSOMWARE_THREAT"
+            weight = 60.0
+            category_label = "Ransomware"
+            severity_detail = (
+                f"Ransomware threat detected: Email claims files have been encrypted and demands payment "
+                f"for decryption. Matched indicators: {', '.join(matched_threats[:3])}."
+            )
+        else:
+            detection_type = "EXTORTION_BLACKMAIL"
+            weight = 50.0
+            category_label = "Extortion / Blackmail"
+            severity_detail = (
+                f"Extortion/blackmail threat detected: Email threatens to expose sensitive data or "
+                f"damage reputation unless demands are met. Matched phrases: {', '.join(matched_threats[:3])}."
+            )
+
+        # Escalate if crypto payment demand is present
+        has_payment_demand = bool(matched_demands)
+        if has_payment_demand:
+            weight += 10.0
+            severity_detail += (
+                f" Payment demand detected: {', '.join(matched_demands[:3])}."
+            )
+
+        # Escalate further if actual wallet address found
+        if found_wallets:
+            weight += 5.0
+            wallet_info = ", ".join(f"{w['type']}: {w['address']}" for w in found_wallets[:2])
+            severity_detail += f" Cryptocurrency wallet address found: {wallet_info}."
+
+        self.score += weight
+        self.detections.append(detection_type)
+        self.factors.append({
+            "category": "EXTORTION_DETECTION",
+            "impact": f"+{weight:.0f} pts (Critical {category_label})",
+            "severity": "CRITICAL",
+            "detail": severity_detail
+        })
+
+        # Add victim guidance
+        self.factors.append({
+            "category": "VICTIM_GUIDANCE",
+            "impact": "Informational",
+            "severity": "WARNING",
+            "detail": (
+                f"⚠️ {category_label.upper()} ALERT: Do NOT pay the attacker. "
+                "These threats are almost always automated mass-scams with no actual data. "
+                "Report to: (1) Local Cyber Crime Cell / Police, "
+                "(2) IC3.gov (FBI Internet Crime Center) or national CERT, "
+                "(3) Your organization's security team. "
+                "Preserve this email as evidence for law enforcement."
+            )
         })

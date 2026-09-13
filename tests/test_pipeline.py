@@ -668,6 +668,54 @@ class PipelineTests(unittest.TestCase):
         self.assertGreaterEqual(res.get("threat_score"), 45.0)
 
 
+    def test_extortion_and_blackmail_threat_detection(self):
+        """Tests that extortion, sextortion, and ransomware threats with crypto payment demands are detected and escalated."""
+        from engine.threat_scorer import ThreatScorer
+
+        # Scenario 1: Sextortion with Bitcoin payment demand
+        email_data = {
+            "headers": {"subject": "I have your private videos and recorded your webcam"},
+            "body": {
+                "plain_text": (
+                    "I have your private videos and photos. I recorded you through your webcam. "
+                    "Send 0.5 Bitcoin to bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq within 48 hours "
+                    "or I will leak this to all your contacts and your life will be ruined."
+                )
+            },
+            "attachments": []
+        }
+        auth_pass = {"composite_pass": True, "spf": {"status": "PASS"}, "dkim": {"status": "PASS"}, "dmarc": {"status": "PASS"}}
+        hop_clean = {"has_timing_anomalies": False, "analyzed_hops": []}
+
+        scorer = ThreatScorer(email_data, auth_pass, hop_clean)
+        res = scorer.calculate()
+
+        self.assertIn("SEXTORTION", res.get("detections", []))
+        self.assertEqual(res.get("risk_category"), "HIGH_RISK")
+        self.assertEqual(res.get("enforcement_action"), "QUARANTINE_RECOMMENDED")
+        self.assertIn("CRITICAL EXTORTION", res.get("verdict", ""))
+        self.assertTrue(any(f.get("category") == "VICTIM_GUIDANCE" for f in res.get("explainability_factors", [])))
+
+        # Scenario 2: Ransomware file encryption threat
+        ransom_data = {
+            "headers": {"subject": "All your corporate files have been encrypted"},
+            "body": {
+                "plain_text": (
+                    "Your files have been encrypted with military-grade algorithms. "
+                    "To obtain the decryption key, pay the ransom in Monero to 48cedpbtb1wD5zPz1P5P9z "
+                    "otherwise all sensitive information about you will be exposed."
+                )
+            },
+            "attachments": []
+        }
+        scorer_ransom = ThreatScorer(ransom_data, auth_pass, hop_clean)
+        res_ransom = scorer_ransom.calculate()
+
+        self.assertIn("RANSOMWARE_THREAT", res_ransom.get("detections", []))
+        self.assertEqual(res_ransom.get("risk_category"), "HIGH_RISK")
+
+
 if __name__ == "__main__":
     unittest.main()
+
 
