@@ -31,13 +31,13 @@ logger = logging.getLogger("tracemail.api")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 try:
-    from firebase_admin import auth as firebase_auth, credentials, initialize_app, get_apps
+    from firebase_admin import auth as firebase_auth, credentials, initialize_app, _apps as firebase_apps
     FIREBASE_ADMIN_AVAILABLE = True
 except ImportError:
     firebase_auth = None
     credentials = None
     initialize_app = None
-    get_apps = None
+    firebase_apps = None
     FIREBASE_ADMIN_AVAILABLE = False
 
 from engine.pipeline import ForensicPipeline
@@ -200,7 +200,7 @@ def initialize_firebase_admin() -> None:
     global FIREBASE_INIT_ERROR
     if not FIREBASE_ADMIN_AVAILABLE:
         return
-    if get_apps and get_apps():
+    if firebase_apps:
         return
 
     credential_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
@@ -233,7 +233,7 @@ def verify_firebase_bearer_token(request: Request) -> Dict[str, Any]:
     if not separator or scheme.lower() != "bearer" or not token.strip():
         raise HTTPException(status_code=401, detail="Authentication required. Provide a Firebase Bearer token.")
 
-    if FIREBASE_ADMIN_AVAILABLE and firebase_auth is not None and get_apps and get_apps():
+    if FIREBASE_ADMIN_AVAILABLE and firebase_auth is not None and firebase_apps:
         try:
             decoded = firebase_auth.verify_id_token(token, check_revoked=True)
             if not decoded.get("uid"):
@@ -249,7 +249,7 @@ def verify_firebase_bearer_token(request: Request) -> Dict[str, Any]:
     err_detail = "Feedback authentication is not configured on this deployment."
     if not FIREBASE_ADMIN_AVAILABLE:
         err_detail = "Firebase Admin SDK is not available in this container environment."
-    elif not (get_apps and get_apps()):
+    elif not firebase_apps:
         if FIREBASE_INIT_ERROR:
             err_detail = f"Firebase Admin credential initialization failed: {FIREBASE_INIT_ERROR}"
         else:
@@ -819,7 +819,7 @@ async def health():
         "version": app.version,
         "pipeline": "Active (RFC 5322/7489, Safe URL Inspection, Tamper-Evident Ledger)",
         "firebase_admin_installed": FIREBASE_ADMIN_AVAILABLE,
-        "firebase_apps_active": len(get_apps()) if (FIREBASE_ADMIN_AVAILABLE and get_apps) else 0,
+        "firebase_apps_active": len(firebase_apps) if (FIREBASE_ADMIN_AVAILABLE and firebase_apps is not None) else 0,
         "has_service_account_env": bool(os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")),
         "cached_analyses": len(ANALYSIS_CACHE)
     }
