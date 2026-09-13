@@ -44,13 +44,26 @@ class ThreatScorer:
     ]
 
     EXTORTION_DEMAND_KEYWORDS = [
+        # Cryptocurrencies
         "bitcoin", "btc", "cryptocurrency", "crypto wallet", "monero", "xmr",
         "ethereum", "eth", "usdt", "tether", "litecoin",
         "wallet address", "send.*to this address", "transfer.*within",
+        # Gift Cards & Prepaid Vouchers
+        "gift card", "apple gift card", "itunes card", "amazon gift card",
+        "google play card", "steam card", "steam gift card", "razer gold",
+        "moneypak", "greendot", "paysafecard", "voucher code", "card code",
+        # P2P Payment & Wire Transfer Channels
+        "cash app", "cashtag", "venmo", "zelle", "paypal", "western union",
+        "moneygram", "wire transfer", "bank transfer", "upi id", "paytm",
+        # Coercion, Deadlines & Timers
         "you have.*hours", "you have.*days", "deadline",
-        "countdown", "timer", "clock is ticking",
+        "countdown", "timer", "clock is ticking", "time is running out",
         "or else", "otherwise i will", "if you don't pay", "if you refuse",
         "consequences will be", "no negotiation",
+        # Two-Stage Extortion Bait (Evading Keyword Filters)
+        "reply to this email", "contact me on telegram", "reach me on telegram",
+        "telegram @", "session id", "wickr", "signal", "settle this quietly",
+        "to prevent the leak", "to stop the release", "instructions to pay"
     ]
 
     FREE_PROVIDERS = {"gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "aol.com", "protonmail.com"}
