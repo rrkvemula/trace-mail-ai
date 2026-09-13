@@ -192,20 +192,33 @@ def check_client_rate_limit(client_ip: str) -> bool:
 
 
 
+FIREBASE_INIT_ERROR: Optional[str] = None
+
+
 def initialize_firebase_admin() -> None:
     """Initializes Firebase Admin once when a service-account credential is present."""
-    if not FIREBASE_ADMIN_AVAILABLE or get_apps():
+    global FIREBASE_INIT_ERROR
+    if not FIREBASE_ADMIN_AVAILABLE:
         return
-    credential_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
-    credential_path = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH")
+    if get_apps and get_apps():
+        return
+
+    credential_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
+    credential_path = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH", "").strip()
     try:
         if credential_json:
-            initialize_app(credentials.Certificate(json.loads(credential_json)))
+            parsed = json.loads(credential_json)
+            initialize_app(credentials.Certificate(parsed))
+            FIREBASE_INIT_ERROR = None
+            logger.info("Firebase Admin successfully initialized from FIREBASE_SERVICE_ACCOUNT_JSON.")
         elif credential_path:
             with open(credential_path, "r", encoding="utf-8") as handle:
                 initialize_app(credentials.Certificate(json.load(handle)))
+            FIREBASE_INIT_ERROR = None
+            logger.info("Firebase Admin successfully initialized from %s.", credential_path)
     except Exception as ex:
-        logger.warning("Firebase Admin initialization failed; bearer tokens cannot be verified: %s", ex)
+        FIREBASE_INIT_ERROR = f"{type(ex).__name__}: {ex}"
+        logger.warning("Firebase Admin initialization failed: %s", ex)
 
 
 def verify_firebase_bearer_token(request: Request) -> Dict[str, Any]:
@@ -220,7 +233,7 @@ def verify_firebase_bearer_token(request: Request) -> Dict[str, Any]:
     if not separator or scheme.lower() != "bearer" or not token.strip():
         raise HTTPException(status_code=401, detail="Authentication required. Provide a Firebase Bearer token.")
 
-    if FIREBASE_ADMIN_AVAILABLE and firebase_auth is not None:
+    if FIREBASE_ADMIN_AVAILABLE and firebase_auth is not None and get_apps and get_apps():
         try:
             decoded = firebase_auth.verify_id_token(token, check_revoked=True)
             if not decoded.get("uid"):
@@ -230,11 +243,19 @@ def verify_firebase_bearer_token(request: Request) -> Dict[str, Any]:
             raise HTTPException(status_code=401, detail="Invalid or expired analyst authentication token.")
 
     local_key = os.environ.get("TRACEMAIL_LOCAL_ANALYST_KEY", "")
-    if not local_key:
-        raise HTTPException(status_code=503, detail="Feedback authentication is not configured on this deployment.")
-    if not secrets.compare_digest(token, local_key):
-        raise HTTPException(status_code=401, detail="Invalid or expired analyst authentication token.")
-    return {"uid": "local-bearer-analyst", "email": "local-analyst@tracemail.local"}
+    if local_key and secrets.compare_digest(token, local_key):
+        return {"uid": "local-bearer-analyst", "email": "local-analyst@tracemail.local"}
+
+    err_detail = "Feedback authentication is not configured on this deployment."
+    if not FIREBASE_ADMIN_AVAILABLE:
+        err_detail = "Firebase Admin SDK is not available in this container environment."
+    elif not (get_apps and get_apps()):
+        if FIREBASE_INIT_ERROR:
+            err_detail = f"Firebase Admin credential initialization failed: {FIREBASE_INIT_ERROR}"
+        else:
+            err_detail = "Firebase service account credentials (FIREBASE_SERVICE_ACCOUNT_JSON) not found."
+
+    raise HTTPException(status_code=503, detail=err_detail)
 
 
 def get_client_ip(request: Request) -> str:
@@ -791,11 +812,15 @@ async def get_sample_content(name: str):
 @app.get("/health")
 @app.get("/api/health")
 async def health():
+    initialize_firebase_admin()
     return {
         "status": "ok",
         "platform": "TRACE-MAIL AI Forensic Intelligence",
         "version": app.version,
         "pipeline": "Active (RFC 5322/7489, Safe URL Inspection, Tamper-Evident Ledger)",
+        "firebase_admin_installed": FIREBASE_ADMIN_AVAILABLE,
+        "firebase_apps_active": len(get_apps()) if (FIREBASE_ADMIN_AVAILABLE and get_apps) else 0,
+        "has_service_account_env": bool(os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")),
         "cached_analyses": len(ANALYSIS_CACHE)
     }
 
