@@ -932,8 +932,8 @@ async def analyze_email(
             "is_demo_sample": filename in set(os.listdir(SAMPLES_DIR)) if os.path.exists(SAMPLES_DIR) else False,
         }
         report["ledger_receipt"] = LEDGER.append(report["analysis_id"], report["forensic_hash"])
+        o_geo = report.get("origin_geo") or {}
         if not report.get("origin_location") or report.get("origin_location") in ("Unknown Location", "Internal / Unknown", "No IP provided, Internal / Unknown"):
-            o_geo = report.get("origin_geo") or {}
             c_str = o_geo.get("city") or ""
             co_str = o_geo.get("country") or ""
             if c_str and co_str and c_str != "Unavailable" and co_str != "Unavailable":
