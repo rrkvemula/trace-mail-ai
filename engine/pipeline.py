@@ -112,6 +112,13 @@ class ForensicPipeline:
             parsed_data["headers"]["origin_location"] = origin_loc
             parsed_data["headers"]["origin_geo"] = origin_geo
 
+        # 6b. Infrastructure Intelligence — Cloud Provider, ESP Account, Subpoena Guidance
+        infra_intel = GeoIPResolver.build_infrastructure_intelligence(
+            origin_geo,
+            parsed_data.get("headers", {}),
+            raw_msg=parser.msg  # Pass the raw email.message.Message for ESP header scanning
+        )
+
         # 7. Safe Static Link Analysis (Zero SSRF)
         from .url_scanner import URLScanner
         scanned_links = URLScanner.scan_all(parsed_data.get("body", {}).get("links", []))
@@ -126,6 +133,7 @@ class ForensicPipeline:
             "origin_location": origin_loc,
             "origin_evidence": parsed_data.get("origin_evidence"),
             "origin_geo": origin_geo,
+            "infrastructure_intelligence": infra_intel,
             "hops_analysis": hop_results,
             "authentication": auth_results,
             "threat_analysis": threat_results,

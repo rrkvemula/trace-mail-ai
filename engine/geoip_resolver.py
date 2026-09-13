@@ -39,6 +39,110 @@ class GeoIPResolver:
     KNOWN_TOR_IPS = {"185.220.101.5", "185.220.101.6", "185.220.101.7", "198.98.56.12", "199.249.230.88"}
     KNOWN_HOSTING_ASNS = {"AS14061": "DigitalOcean", "AS16509": "Amazon AWS", "AS24940": "Hetzner", "AS16276": "OVH", "AS63949": "Linode"}
 
+    # ── Infrastructure Intelligence Registry ──
+    # Maps ASN to cloud provider details for forensic subpoena guidance
+    CLOUD_PROVIDER_REGISTRY: Dict[str, Dict[str, Any]] = {
+        "AS16509": {
+            "provider": "Amazon Web Services (AWS)",
+            "abuse_contact": "aws-abuse@amazon.com",
+            "legal_portal": "https://aws.amazon.com/forms/report-abuse",
+            "subpoena_note": "Include: Source IP, timestamp (UTC), Message-ID. AWS can identify the exact EC2 instance or SES account.",
+        },
+        "AS14061": {
+            "provider": "DigitalOcean",
+            "abuse_contact": "abuse@digitalocean.com",
+            "legal_portal": "https://www.digitalocean.com/company/contact#abuse",
+            "subpoena_note": "Include: Droplet IP, timestamp (UTC). DigitalOcean retains customer billing and SSH key records.",
+        },
+        "AS15169": {
+            "provider": "Google Cloud / Gmail Infrastructure",
+            "abuse_contact": "network-abuse@google.com",
+            "legal_portal": "https://support.google.com/legal",
+            "subpoena_note": "Include: Source IP, Message-ID, timestamp. Google can trace to specific Workspace or GCP project.",
+        },
+        "AS8075": {
+            "provider": "Microsoft Azure / Outlook",
+            "abuse_contact": "abuse@microsoft.com",
+            "legal_portal": "https://msrc.microsoft.com/report/abuse",
+            "subpoena_note": "Include: Source IP, X-MS-Exchange headers, timestamp. Microsoft can trace to Azure subscription or M365 tenant.",
+        },
+        "AS24940": {
+            "provider": "Hetzner Online GmbH",
+            "abuse_contact": "abuse@hetzner.com",
+            "legal_portal": "https://www.hetzner.com/legal/abuse",
+            "subpoena_note": "Include: Server IP, timestamp (UTC). Hetzner retains customer KYC and payment records (German jurisdiction).",
+        },
+        "AS16276": {
+            "provider": "OVHcloud",
+            "abuse_contact": "abuse@ovh.net",
+            "legal_portal": "https://www.ovhcloud.com/en/abuse/",
+            "subpoena_note": "Include: Server IP, timestamp (UTC). OVH retains customer identity under French/EU data retention law.",
+        },
+        "AS63949": {
+            "provider": "Akamai / Linode",
+            "abuse_contact": "abuse@linode.com",
+            "legal_portal": "https://www.linode.com/legal-compliance/",
+            "subpoena_note": "Include: Linode IP, timestamp (UTC). Linode retains account holder and payment info.",
+        },
+        "AS20473": {
+            "provider": "Vultr / Choopa LLC",
+            "abuse_contact": "abuse@vultr.com",
+            "legal_portal": "https://www.vultr.com/legal/aup/",
+            "subpoena_note": "Include: Instance IP, timestamp (UTC). Vultr retains customer account and billing records.",
+        },
+        "AS13335": {
+            "provider": "Cloudflare, Inc.",
+            "abuse_contact": "abuse@cloudflare.com",
+            "legal_portal": "https://www.cloudflare.com/abuse/form",
+            "subpoena_note": "Cloudflare is a reverse proxy; the real origin server IP is behind it. Request origin IP disclosure.",
+        },
+        "AS36459": {
+            "provider": "GitHub, Inc. (Microsoft)",
+            "abuse_contact": "support@github.com",
+            "legal_portal": "https://support.github.com/contact/report-abuse",
+            "subpoena_note": "Include: Message-ID, timestamp. GitHub can identify the sending automation or Actions workflow.",
+        },
+        "AS11377": {
+            "provider": "Twilio SendGrid",
+            "abuse_contact": "abuse@sendgrid.com",
+            "legal_portal": "https://sendgrid.com/report-spam/",
+            "subpoena_note": "Include: X-SG-EID header, Source IP, timestamp. SendGrid can identify the exact customer account and API key used.",
+        },
+        "AS46606": {
+            "provider": "Unified Layer / Bluehost",
+            "abuse_contact": "abuse@unifiedlayer.com",
+            "legal_portal": "N/A",
+            "subpoena_note": "Include: Source IP, timestamp. Shared hosting provider; can trace to cPanel account holder.",
+        },
+        "AS396982": {
+            "provider": "Google Cloud Platform",
+            "abuse_contact": "gc-abuse@google.com",
+            "legal_portal": "https://support.google.com/code/contact/cloud_platform_report",
+            "subpoena_note": "Include: Source IP, timestamp. Google can trace to specific GCP project and billing account.",
+        },
+    }
+
+    # ── ESP Header Fingerprint Database ──
+    # Maps ESP-specific email headers to provider names for account-level tracing
+    ESP_HEADER_FINGERPRINTS: Dict[str, Dict[str, str]] = {
+        "X-SG-EID":             {"provider": "Twilio SendGrid",     "description": "SendGrid Event ID — uniquely identifies the sending account and API key"},
+        "X-SG-ID":              {"provider": "Twilio SendGrid",     "description": "SendGrid internal message tracking ID"},
+        "X-SES-Outgoing":       {"provider": "Amazon SES",          "description": "AWS SES outgoing relay marker — ties to the IAM identity or SES sending identity"},
+        "X-AMAZON-MAIL-RELAY":  {"provider": "Amazon SES",          "description": "Amazon SES relay identifier"},
+        "X-MC-User":            {"provider": "Mailchimp / Mandrill","description": "Mailchimp customer account ID — identifies the exact campaign sender"},
+        "X-Mailgun-Sid":        {"provider": "Mailgun",             "description": "Mailgun session ID — identifies sending domain and API key"},
+        "X-Mailgun-Tag":        {"provider": "Mailgun",             "description": "Mailgun customer-defined routing tag"},
+        "X-PM-Message-Id":      {"provider": "Postmark",            "description": "Postmark message ID — ties to the server token and sending account"},
+        "X-Postmark-Server-Token": {"provider": "Postmark",         "description": "Postmark server token identifier"},
+        "X-Sparkpost-Transmissions-Id": {"provider": "SparkPost",   "description": "SparkPost transmission ID — identifies the API call and subaccount"},
+        "X-CMAE-Envelope":      {"provider": "Mimecast",            "description": "Mimecast envelope tracking — identifies the security gateway tenant"},
+        "X-MS-Exchange-Organization-SCL": {"provider": "Microsoft Exchange / O365", "description": "Microsoft Spam Confidence Level — indicates M365 tenant processing"},
+        "X-MS-Exchange-CrossTenant-Id": {"provider": "Microsoft Exchange / O365", "description": "Microsoft cross-tenant GUID — uniquely identifies the M365 tenant"},
+        "X-Google-DKIM-Signature": {"provider": "Google Workspace / Gmail", "description": "Google's internal DKIM signature — confirms sending through Google infrastructure"},
+        "X-Gm-Message-State":   {"provider": "Google Workspace / Gmail", "description": "Gmail internal message state token"},
+        "Feedback-ID":          {"provider": "Google / ESP (Generic)", "description": "Feedback loop ID — format varies: Google uses campaign:customer:mailtype:account"},
+    }
+
     # Built-in High-Accuracy Infrastructure & Scenario TestNet Registry (Zero-Latency Guarantee)
     BUILTIN_INFRA_DATABASE: Dict[str, Dict[str, Any]] = {
         "192.0.2.88": {
@@ -754,3 +858,141 @@ class GeoIPResolver:
             "confidence": "NOT_APPLICABLE",
             "note": note
         }
+
+    @classmethod
+    def build_infrastructure_intelligence(
+        cls,
+        origin_geo: Dict[str, Any],
+        headers: Dict[str, Any],
+        raw_msg: Any = None
+    ) -> Dict[str, Any]:
+        """
+        Generates actionable infrastructure intelligence for forensic investigation teams.
+        Identifies the cloud provider, data center, ESP account identifiers, and
+        provides subpoena/abuse-report guidance so investigators can trace the
+        attacker's sending account.
+
+        Args:
+            origin_geo: Resolved GeoIP data for the origin IP.
+            headers: Parsed email headers dict from EmailParser.
+            raw_msg: The parsed email.message.Message object (for scanning all headers).
+        """
+        intel: Dict[str, Any] = {
+            "cloud_provider": None,
+            "asn": None,
+            "data_center_location": None,
+            "abuse_contact": None,
+            "legal_portal": None,
+            "subpoena_guidance": None,
+            "esp_detected": None,
+            "esp_account_headers": [],
+            "is_tor_exit": False,
+            "is_vpn_proxy": False,
+            "anonymity_warning": None,
+            "investigation_priority": "STANDARD",
+        }
+
+        # ── 1. Cloud Provider Identification from ASN ──
+        asn = origin_geo.get("asn", "") or ""
+        # Normalize: extract just the AS number portion (e.g., "AS16509 Amazon" -> "AS16509")
+        asn_id = asn.split()[0] if asn else ""
+        intel["asn"] = asn_id or asn
+
+        if asn_id in cls.CLOUD_PROVIDER_REGISTRY:
+            provider_info = cls.CLOUD_PROVIDER_REGISTRY[asn_id]
+            intel["cloud_provider"] = provider_info["provider"]
+            intel["abuse_contact"] = provider_info["abuse_contact"]
+            intel["legal_portal"] = provider_info["legal_portal"]
+            intel["subpoena_guidance"] = provider_info["subpoena_note"]
+        elif asn_id in cls.KNOWN_HOSTING_ASNS:
+            intel["cloud_provider"] = cls.KNOWN_HOSTING_ASNS[asn_id]
+        else:
+            # Use the org/isp fields as fallback identification
+            org = origin_geo.get("org", "") or origin_geo.get("organization", "") or ""
+            isp = origin_geo.get("isp", "") or ""
+            intel["cloud_provider"] = org if org and org != "Unknown Org" else isp if isp and isp != "Unknown ISP" else None
+
+        # ── 2. Data Center Location ──
+        city = origin_geo.get("city", "")
+        region = origin_geo.get("region", "")
+        country = origin_geo.get("country", "")
+        parts = [p for p in [city, region, country] if p and p not in ("Unknown", "Unavailable", "Internal")]
+        intel["data_center_location"] = ", ".join(parts) if parts else None
+
+        # ── 3. ESP Header Fingerprinting ──
+        # Scan the raw message object for ESP-specific tracking headers
+        detected_esp_headers = []
+        detected_providers = set()
+
+        if raw_msg is not None:
+            # raw_msg is an email.message.Message object
+            try:
+                all_header_keys = raw_msg.keys() if hasattr(raw_msg, 'keys') else []
+                for hdr_name in all_header_keys:
+                    if hdr_name in cls.ESP_HEADER_FINGERPRINTS:
+                        fp = cls.ESP_HEADER_FINGERPRINTS[hdr_name]
+                        hdr_value = str(raw_msg.get(hdr_name, ""))
+                        # Truncate long values for safety (max 120 chars)
+                        display_value = hdr_value[:120] + "..." if len(hdr_value) > 120 else hdr_value
+                        detected_esp_headers.append({
+                            "header": hdr_name,
+                            "value": display_value,
+                            "provider": fp["provider"],
+                            "forensic_use": fp["description"],
+                        })
+                        detected_providers.add(fp["provider"])
+            except Exception:
+                pass
+
+        # Also check known header fields stored in the parsed headers dict
+        for hdr_key, esp_name in [
+            ("x_mailer", None),
+            ("x_originating_ip", None),
+        ]:
+            val = headers.get(hdr_key, "")
+            if val and isinstance(val, str) and val.strip():
+                detected_esp_headers.append({
+                    "header": hdr_key.replace("_", "-").title(),
+                    "value": val.strip()[:120],
+                    "provider": "Sender Mail Client" if hdr_key == "x_mailer" else "Originating Network",
+                    "forensic_use": "Identifies the email client software used by the sender" if hdr_key == "x_mailer"
+                                    else "The IP address of the device that composed the email (before MTA relay)",
+                })
+
+        intel["esp_account_headers"] = detected_esp_headers
+        if detected_providers:
+            intel["esp_detected"] = ", ".join(sorted(detected_providers))
+
+        # ── 4. Anonymity & Evasion Detection ──
+        ip = origin_geo.get("ip")
+        if ip and ip in cls.KNOWN_TOR_IPS:
+            intel["is_tor_exit"] = True
+            intel["anonymity_warning"] = "Sender routed through a known Tor exit node. True origin IP is hidden."
+            intel["investigation_priority"] = "HIGH"
+
+        isp_lower = (origin_geo.get("isp", "") or "").lower()
+        org_lower = (origin_geo.get("org", "") or "").lower()
+        vpn_keywords = ("vpn", "proxy", "anonymize", "mullvad", "nordvpn", "expressvpn", "surfshark", "protonvpn")
+        if any(kw in isp_lower or kw in org_lower for kw in vpn_keywords):
+            intel["is_vpn_proxy"] = True
+            intel["anonymity_warning"] = (intel.get("anonymity_warning") or "") + " Sender is using a VPN/proxy service. Real origin IP may differ."
+            intel["anonymity_warning"] = intel["anonymity_warning"].strip()
+            intel["investigation_priority"] = "HIGH"
+
+        # Bulletproof hosting detection
+        bulletproof_keywords = ("bulletproof", "offshore", "abuse-resistant", "privacy hosting")
+        if any(kw in isp_lower or kw in org_lower for kw in bulletproof_keywords):
+            intel["anonymity_warning"] = (intel.get("anonymity_warning") or "") + " Infrastructure appears to be bulletproof/abuse-resistant hosting."
+            intel["anonymity_warning"] = intel["anonymity_warning"].strip()
+            intel["investigation_priority"] = "CRITICAL"
+
+        # ── 5. Build Subpoena Guidance if not already set ──
+        if not intel["subpoena_guidance"] and intel["cloud_provider"]:
+            ip_str = ip or "N/A"
+            intel["subpoena_guidance"] = (
+                f"Contact {intel['cloud_provider']} with the following evidence: "
+                f"Source IP ({ip_str}), email Message-ID, and timestamp (UTC from Received headers). "
+                f"Request customer account identification and access/activity logs."
+            )
+
+        return intel
