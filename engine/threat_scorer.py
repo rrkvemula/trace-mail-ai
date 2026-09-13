@@ -10,7 +10,7 @@ Separates Detection, Risk, Confidence, and Enforcement actions.
 """
 
 import re
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Set
 from .url_scanner import URLScanner
 from .auth_validator import AuthValidator
 
